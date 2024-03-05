@@ -3,8 +3,10 @@ use std::ffi::{CStr, CString};
 use gl::types::GLfloat;
 use glutin::display::GlDisplay;
 
+use crate::shader::{Shader, ShaderBuilder};
+
 pub struct Renderer {
-    program: gl::types::GLuint,
+    shader: Shader,
     vao: gl::types::GLuint,
     vbo: gl::types::GLuint,
 }
@@ -23,25 +25,17 @@ impl Renderer {
             if let Some(version) = get_gl_string(gl::VERSION) {
                 println!("OpenGL Version {}", version.to_string_lossy());
             }
-
             if let Some(shaders_version) = get_gl_string(gl::SHADING_LANGUAGE_VERSION) {
                 println!("Shaders version on {}", shaders_version.to_string_lossy());
             }
 
-            let vertex_shader = create_shader(gl::VERTEX_SHADER, VERTEX_SHADER_SOURCE);
-            let fragment_shader = create_shader(gl::FRAGMENT_SHADER, FRAGMENT_SHADER_SOURCE);
+            let shader = ShaderBuilder::new()
+                .with_shader_file("shaders/simple.vert")
+                .with_shader_file("shaders/simple.frag")
+                .link()
+                .expect("Shader had errors. See stdout.");
 
-            let program = gl::CreateProgram();
-
-            gl::AttachShader(program, vertex_shader);
-            gl::AttachShader(program, fragment_shader);
-
-            gl::LinkProgram(program);
-
-            gl::UseProgram(program);
-
-            gl::DeleteShader(vertex_shader);
-            gl::DeleteShader(fragment_shader);
+            shader.activate();
 
             let mut vao = std::mem::zeroed();
             gl::GenVertexArrays(1, &mut vao);
@@ -57,10 +51,8 @@ impl Renderer {
                 gl::STATIC_DRAW,
             );
 
-            let pos_attrib = gl::GetAttribLocation(program, b"position\0".as_ptr() as *const _);
-            let color_attrib = gl::GetAttribLocation(program, b"color\0".as_ptr() as *const _);
             gl::VertexAttribPointer(
-                pos_attrib as gl::types::GLuint,
+                0, // position
                 2,
                 gl::FLOAT,
                 0,
@@ -68,22 +60,22 @@ impl Renderer {
                 std::ptr::null(),
             );
             gl::VertexAttribPointer(
-                color_attrib as gl::types::GLuint,
+                1, // color
                 3,
                 gl::FLOAT,
                 0,
                 5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
                 (2 * std::mem::size_of::<f32>()) as *const () as *const _,
             );
-            gl::EnableVertexAttribArray(pos_attrib as gl::types::GLuint);
-            gl::EnableVertexAttribArray(color_attrib as gl::types::GLuint);
+            gl::EnableVertexAttribArray(0 as gl::types::GLuint);
+            gl::EnableVertexAttribArray(1 as gl::types::GLuint);
 
-            Self { program, vao, vbo }
+            Self { shader, vao, vbo }
         }
     }
 
     pub fn draw(&self) {
-        self.draw_with_clear_color(0.1, 0.1, 0.1, 0.9)
+        self.draw_with_clear_color(0.1, 0.1, 0.1, 1.0)
     }
 
     pub fn draw_with_clear_color(
@@ -94,7 +86,7 @@ impl Renderer {
         alpha: GLfloat,
     ) {
         unsafe {
-            gl::UseProgram(self.program);
+            self.shader.activate();
 
             gl::BindVertexArray(self.vao);
             gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
@@ -115,23 +107,10 @@ impl Renderer {
 impl Drop for Renderer {
     fn drop(&mut self) {
         unsafe {
-            gl::DeleteProgram(self.program);
             gl::DeleteBuffers(1, &self.vbo);
             gl::DeleteVertexArrays(1, &self.vao);
         }
     }
-}
-
-unsafe fn create_shader(shader: gl::types::GLenum, source: &[u8]) -> gl::types::GLuint {
-    let shader = gl::CreateShader(shader);
-    gl::ShaderSource(
-        shader,
-        1,
-        [source.as_ptr().cast()].as_ptr(),
-        std::ptr::null(),
-    );
-    gl::CompileShader(shader);
-    shader
 }
 
 fn get_gl_string(variant: gl::types::GLenum) -> Option<&'static CStr> {
@@ -147,29 +126,3 @@ static VERTEX_DATA: [f32; 15] = [
      0.0,  0.5,  0.0,  1.0,  0.0,
      0.5, -0.5,  0.0,  0.0,  1.0,
 ];
-
-const VERTEX_SHADER_SOURCE: &[u8] = b"
-#version 100
-precision mediump float;
-
-attribute vec2 position;
-attribute vec3 color;
-
-varying vec3 v_color;
-
-void main() {
-    gl_Position = vec4(position, 0.0, 1.0);
-    v_color = color;
-}
-\0";
-
-const FRAGMENT_SHADER_SOURCE: &[u8] = b"
-#version 100
-precision mediump float;
-
-varying vec3 v_color;
-
-void main() {
-    gl_FragColor = vec4(v_color, 1.0);
-}
-\0";

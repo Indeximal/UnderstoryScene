@@ -14,7 +14,12 @@ use winit::keyboard::{Key, NamedKey};
 use winit::window::WindowBuilder;
 
 mod renderer;
+mod shader;
 
+/// This main function and the renderer architecture have been adapted and somewhat
+/// slimmed down from
+/// <https://github.com/rust-windowing/glutin/blob/e1bf1e22a3e2f0e3dc4213f85c10f33049ce8d77/glutin_examples/examples/window.rs>.
+/// The better place to start reading is in [`renderer`].
 pub fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoopBuilder::new().build().unwrap();
 
@@ -121,17 +126,17 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                         },
                     ..
                 } => window_target.exit(),
+                WindowEvent::RedrawRequested => {
+                    if let Some((gl_context, gl_surface, window)) = &state {
+                        let renderer = renderer.as_ref().unwrap();
+                        renderer.draw();
+                        window.request_redraw();
+
+                        gl_surface.swap_buffers(gl_context).unwrap();
+                    }
+                }
                 _ => (),
             },
-            Event::AboutToWait => {
-                if let Some((gl_context, gl_surface, window)) = &state {
-                    let renderer = renderer.as_ref().unwrap();
-                    renderer.draw();
-                    window.request_redraw();
-
-                    gl_surface.swap_buffers(gl_context).unwrap();
-                }
-            }
             _ => (),
         }
     })?;
