@@ -112,7 +112,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                                 NonZeroU32::new(size.width).unwrap(),
                                 NonZeroU32::new(size.height).unwrap(),
                             );
-                            let renderer = renderer.as_ref().unwrap();
+                            let renderer = renderer.as_mut().unwrap();
                             renderer.resize(size.width as i32, size.height as i32);
                         }
                     }
