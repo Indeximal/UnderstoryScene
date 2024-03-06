@@ -13,6 +13,7 @@ use winit::event_loop::EventLoopBuilder;
 use winit::keyboard::{Key, NamedKey};
 use winit::window::WindowBuilder;
 
+mod mesh;
 mod renderer;
 mod shader;
 

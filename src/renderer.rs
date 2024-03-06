@@ -4,13 +4,15 @@ use gl::types::GLfloat;
 use glutin::display::GlDisplay;
 use nalgebra_glm as glm;
 
-use crate::shader::{Shader, ShaderBuilder};
+use crate::{
+    mesh::{Mesh, VAO},
+    shader::{Shader, ShaderBuilder},
+};
 
 pub struct Renderer {
-    shader: Shader,
-    vao: gl::types::GLuint,
-    vbo: gl::types::GLuint,
     aspect_ratio: f32,
+    shader: Shader,
+    quad: VAO,
 }
 
 impl Renderer {
@@ -40,44 +42,8 @@ impl Renderer {
                 .expect("Shader had errors. See stdout.")
         };
 
-        let vao = unsafe {
-            let mut vao = std::mem::zeroed();
-            gl::GenVertexArrays(1, &mut vao);
-            gl::BindVertexArray(vao);
-            vao
-        };
-
-        let vbo = unsafe {
-            let mut vbo = std::mem::zeroed();
-            gl::GenBuffers(1, &mut vbo);
-            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-            gl::BufferData(
-                gl::ARRAY_BUFFER,
-                (VERTEX_DATA.len() * std::mem::size_of::<f32>()) as gl::types::GLsizeiptr,
-                VERTEX_DATA.as_ptr() as *const _,
-                gl::STATIC_DRAW,
-            );
-
-            gl::VertexAttribPointer(
-                0, // position
-                2,
-                gl::FLOAT,
-                0,
-                5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                std::ptr::null(),
-            );
-            gl::VertexAttribPointer(
-                1, // color
-                3,
-                gl::FLOAT,
-                0,
-                5 * std::mem::size_of::<f32>() as gl::types::GLsizei,
-                (2 * std::mem::size_of::<f32>()) as *const () as *const _,
-            );
-            gl::EnableVertexAttribArray(0 as gl::types::GLuint);
-            gl::EnableVertexAttribArray(1 as gl::types::GLuint);
-            vbo
-        };
+        let quad = Mesh::quad();
+        let quad_vao = VAO::new_from_mesh(&quad);
 
         let mut viewport: [gl::types::GLint; 4] = [0; 4];
         unsafe {
@@ -88,10 +54,9 @@ impl Renderer {
         let aspect_ratio = viewport_width as f32 / viewport_height as f32;
 
         Self {
-            shader,
-            vao,
-            vbo,
             aspect_ratio,
+            shader,
+            quad: quad_vao,
         }
     }
 
@@ -106,6 +71,11 @@ impl Renderer {
         blue: GLfloat,
         alpha: GLfloat,
     ) {
+        unsafe {
+            gl::ClearColor(red, green, blue, alpha);
+            gl::Clear(gl::COLOR_BUFFER_BIT);
+        }
+
         let projection: glm::Mat4 = glm::perspective(
             self.aspect_ratio,
             80.0 * std::f32::consts::PI / 180.,
@@ -128,14 +98,9 @@ impl Renderer {
                 gl::FALSE,
                 view_proj_mat.as_ptr(),
             );
-
-            gl::BindVertexArray(self.vao);
-            gl::BindBuffer(gl::ARRAY_BUFFER, self.vbo);
-
-            gl::ClearColor(red, green, blue, alpha);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
-            gl::DrawArrays(gl::TRIANGLES, 0, 6);
         }
+
+        self.quad.render();
     }
 
     pub fn resize(&mut self, width: i32, height: i32) {
@@ -146,29 +111,9 @@ impl Renderer {
     }
 }
 
-impl Drop for Renderer {
-    fn drop(&mut self) {
-        unsafe {
-            gl::DeleteBuffers(1, &self.vbo);
-            gl::DeleteVertexArrays(1, &self.vao);
-        }
-    }
-}
-
 fn get_gl_string(variant: gl::types::GLenum) -> Option<&'static CStr> {
     unsafe {
         let s = gl::GetString(variant);
         (!s.is_null()).then(|| CStr::from_ptr(s.cast()))
     }
 }
-
-#[rustfmt::skip]
-static VERTEX_DATA: [f32; 30] = [
-    -0.5, -0.5,  1.0,  0.0,  0.0,
-     0.5,  0.5,  0.0,  1.0,  0.0,
-     0.5, -0.5,  0.0,  0.0,  1.0,
-
-    -0.5, -0.5,  1.0,  0.0,  0.0,
-    -0.5,  0.5,  0.0,  1.0,  0.0,
-     0.5,  0.5,  0.0,  0.0,  1.0,
-];
