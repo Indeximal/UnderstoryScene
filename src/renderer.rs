@@ -4,15 +4,15 @@ use gl::types::GLfloat;
 use glutin::display::GlDisplay;
 use nalgebra_glm as glm;
 
-use crate::{
-    mesh::{Mesh, VAO},
-    shader::{Shader, ShaderBuilder},
-};
+use crate::mesh::{Mesh, VAO};
+use crate::shader::{Shader, ShaderBuilder};
+use crate::texture::Texture;
 
 pub struct Renderer {
     aspect_ratio: f32,
     shader: Shader,
     quad: VAO,
+    noise: Texture,
 }
 
 impl Renderer {
@@ -42,21 +42,22 @@ impl Renderer {
                 .expect("Shader had errors. See stdout.")
         };
 
-        let quad = Mesh::quad();
+        let quad = Mesh::quad_mesh(32);
         let quad_vao = VAO::new_from_mesh(&quad);
 
         let mut viewport: [gl::types::GLint; 4] = [0; 4];
         unsafe {
             gl::GetIntegerv(gl::VIEWPORT, viewport.as_mut_ptr());
         }
-        let viewport_width = viewport[2] as gl::types::GLsizei;
-        let viewport_height = viewport[3] as gl::types::GLsizei;
-        let aspect_ratio = viewport_width as f32 / viewport_height as f32;
+        let aspect_ratio = viewport[2] as f32 / viewport[3] as f32;
+
+        let noise = Texture::noise(256, 256, 12345678);
 
         Self {
             aspect_ratio,
             shader,
             quad: quad_vao,
+            noise,
         }
     }
 
@@ -98,6 +99,9 @@ impl Renderer {
                 gl::FALSE,
                 view_proj_mat.as_ptr(),
             );
+
+            self.noise.activate(0);
+            gl::Uniform1i(self.shader.get_uniform_location("noise_texture"), 0);
         }
 
         self.quad.render();

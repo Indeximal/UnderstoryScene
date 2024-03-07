@@ -1,9 +1,15 @@
+use std::marker::PhantomData;
+
 use gl::types::GLuint;
 use tobj;
 
+use crate::error::{clear_gl_errors, get_gl_errors};
+
 pub const POSITION_ATTRIB_PTR: u32 = 0;
 pub const NORMAL_ATTRIB_PTR: u32 = 1;
+#[allow(dead_code)]
 pub const TANGENT_ATTRIB_PTR: u32 = 2;
+#[allow(dead_code)]
 pub const BITANGENT_ATTRIB_PTR: u32 = 3;
 pub const UV_ATTRIB_PTR: u32 = 4;
 
@@ -24,6 +30,8 @@ pub struct VAO {
     index_count: usize,
     vao: GLuint,
     vbos: Vec<GLuint>,
+    /// Mark the vao as !Send and !Sync, since OpenGL is not thread safe
+    _marker: PhantomData<*const ()>,
 }
 
 impl Mesh {
@@ -111,6 +119,50 @@ impl Mesh {
             indices: vec![0, 1, 2, 0, 2, 3],
         }
     }
+
+    /// Generates a mesh of `divisions` by `divisions` quads on the XY plane.
+    ///
+    /// Is 2x2 large and spans 0 to 1 in UV space.
+    pub fn quad_mesh(num_quads: u32) -> Self {
+        let mut positions = vec![];
+        let mut normals = vec![];
+        let mut uvs = vec![];
+        let mut indices = vec![];
+
+        for y in 0..=num_quads {
+            for x in 0..=num_quads {
+                let u = x as f32 / num_quads as f32;
+                let v = y as f32 / num_quads as f32;
+                let px = u * 2.0 - 1.0;
+                let py = v * 2.0 - 1.0;
+
+                // Generate the vertex
+                positions.extend_from_slice(&[px, py, 0.0]);
+                normals.extend_from_slice(&[0.0, 0.0, 1.0]);
+                uvs.extend_from_slice(&[u, v]);
+
+                // if not on the edge, generate two triangles aswell
+                if x < num_quads && y < num_quads {
+                    let this_i = x + y * (num_quads + 1);
+                    indices.extend_from_slice(&[
+                        this_i,
+                        this_i + 1,
+                        this_i + (num_quads + 1),
+                        this_i + 1,
+                        this_i + (num_quads + 1) + 1,
+                        this_i + (num_quads + 1),
+                    ]);
+                }
+            }
+        }
+
+        Mesh {
+            positions,
+            normals,
+            uvs,
+            indices,
+        }
+    }
 }
 
 impl VAO {
@@ -120,6 +172,8 @@ impl VAO {
     pub fn new_from_mesh(mesh: &Mesh) -> Self {
         mesh.check_consitency()
             .expect("Refusing to create VAO from inconsistent mesh.");
+
+        clear_gl_errors();
 
         let vao_id = unsafe {
             let mut vao = 0;
@@ -145,14 +199,19 @@ impl VAO {
             vbo
         };
 
+        get_gl_errors().expect("Generating the mesh buffer run into errors");
+
         VAO {
             vao: vao_id,
             index_count: mesh.indices.len(),
             vbos: vec![position_vbo, normal_vbo, uvs_vbo, index_vbo],
+            _marker: PhantomData,
         }
     }
 
     pub fn render(&self) {
+        // SAFETY: VAO id was created in the constructor, errors were checked,
+        // and the object is on the same thread.
         unsafe {
             gl::BindVertexArray(self.vao);
             gl::DrawElements(

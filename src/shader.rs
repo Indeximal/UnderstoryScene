@@ -28,7 +28,11 @@ impl Shader {
     // Make sure the shader is active before calling this
     pub unsafe fn get_uniform_location(&self, name: &str) -> i32 {
         let name_cstr = CString::new(name).expect("CString::new failed");
-        gl::GetUniformLocation(self.program_id, name_cstr.as_ptr())
+        let id = gl::GetUniformLocation(self.program_id, name_cstr.as_ptr());
+        if id == -1 {
+            panic!("Uniform {} not found.", name);
+        }
+        id
     }
 
     pub unsafe fn activate(&self) {

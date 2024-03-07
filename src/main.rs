@@ -13,9 +13,11 @@ use winit::event_loop::EventLoopBuilder;
 use winit::keyboard::{Key, NamedKey};
 use winit::window::WindowBuilder;
 
+mod error;
 mod mesh;
 mod renderer;
 mod shader;
+mod texture;
 
 /// This main function and the renderer architecture have been adapted and somewhat
 /// slimmed down from
