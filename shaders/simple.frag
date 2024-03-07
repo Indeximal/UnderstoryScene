@@ -8,5 +8,5 @@ out vec4 color;
 
 void main() {
     vec4 noise = texture(noise_texture, v_uv);
-    color = vec4(noise.rgb, 1.0);
+    color = vec4(noise.rrr, 1.0);
 }
