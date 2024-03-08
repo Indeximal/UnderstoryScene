@@ -4,7 +4,7 @@ use gl::types::GLfloat;
 use glutin::display::GlDisplay;
 use nalgebra_glm as glm;
 
-use crate::terrain::TerrainEntity;
+use crate::terrain::{BasePlate, TerrainEntity};
 
 pub trait Renderable {
     fn render(&self, view_proj_mat: &glm::Mat4);
@@ -40,14 +40,22 @@ impl Renderer {
         }
         let aspect_ratio = viewport[2] as f32 / viewport[3] as f32;
 
+        unsafe {
+            gl::Enable(gl::DEPTH_TEST);
+            gl::DepthFunc(gl::LESS);
+        }
+
         Self {
             aspect_ratio,
-            entities: vec![Box::new(TerrainEntity::from_scratch())],
+            entities: vec![
+                Box::new(TerrainEntity::from_scratch()),
+                Box::new(BasePlate::from_scratch()),
+            ],
         }
     }
 
     pub fn draw(&self) {
-        self.draw_with_clear_color(0.1, 0.1, 0.1, 1.0)
+        self.draw_with_clear_color(186. / 255., 219. / 255., 222. / 255., 1.0)
     }
 
     pub fn draw_with_clear_color(
@@ -59,7 +67,7 @@ impl Renderer {
     ) {
         unsafe {
             gl::ClearColor(red, green, blue, alpha);
-            gl::Clear(gl::COLOR_BUFFER_BIT);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
         }
 
         let projection: glm::Mat4 = glm::perspective(

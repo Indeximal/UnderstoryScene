@@ -16,6 +16,12 @@ pub struct TerrainEntity {
     shader: Rc<Shader>,
 }
 
+pub struct BasePlate {
+    vao: Rc<VAO>,
+    model: glm::Mat4,
+    shader: Rc<Shader>,
+}
+
 impl TerrainEntity {
     /// This is not particularly smart to use more than once, as it
     /// does not share textures, shaders or buffers.
@@ -40,6 +46,85 @@ impl TerrainEntity {
             model,
             shader: Rc::new(terrain_shader),
         }
+    }
+}
+
+impl BasePlate {
+    pub fn from_scratch() -> Self {
+        let shader = unsafe {
+            ShaderBuilder::new()
+                .with_shader_file("shaders/simple_perspective.vert")
+                .with_shader_file("shaders/simple_const_color.frag")
+                .link()
+                .expect("Simple shader had errors. See stdout.")
+        };
+
+        let quad = Mesh::quad();
+        let quad_vao = VAO::new_from_mesh(&quad);
+        // 100 by 100 meters size
+        let model = glm::translate(
+            &glm::scale(&glm::identity(), &glm::vec3(100.0, 100.0, 1.0)),
+            &glm::vec3(0., 0., -0.01),
+        );
+
+        BasePlate {
+            vao: Rc::new(quad_vao),
+            model,
+            shader: Rc::new(shader),
+        }
+    }
+}
+
+impl Renderable for TerrainEntity {
+    fn render(&self, view_proj_mat: &glm::Mat4) {
+        unsafe {
+            self.shader.activate();
+            gl::UniformMatrix4fv(
+                self.shader.get_uniform_location("view_proj"),
+                1,
+                gl::FALSE,
+                view_proj_mat.as_ptr(),
+            );
+            gl::UniformMatrix4fv(
+                self.shader.get_uniform_location("model_mat"),
+                1,
+                gl::FALSE,
+                self.model.as_ptr(),
+            );
+
+            self.displacement.activate(0);
+            gl::Uniform1i(self.shader.get_uniform_location("displacement_map"), 0);
+        }
+
+        self.vao.render();
+    }
+}
+
+impl Renderable for BasePlate {
+    fn render(&self, view_proj_mat: &glm::Mat4) {
+        unsafe {
+            self.shader.activate();
+            gl::UniformMatrix4fv(
+                self.shader.get_uniform_location("view_proj"),
+                1,
+                gl::FALSE,
+                view_proj_mat.as_ptr(),
+            );
+            gl::UniformMatrix4fv(
+                self.shader.get_uniform_location("model_mat"),
+                1,
+                gl::FALSE,
+                self.model.as_ptr(),
+            );
+
+            gl::Uniform3fv(
+                self.shader.get_uniform_location("color"),
+                1,
+                (&[79.0f32 / 255., 63. / 255., 45. / 255.]) as *const _,
+            );
+        }
+
+        self.vao.render();
     }
 }
 
@@ -75,29 +160,4 @@ fn noise_texture(width: u32, height: u32, seed: u32) -> Texture {
     }
 
     Texture::new::<f32, format::GrayScale>(width, height, result_map.as_slice())
-}
-
-impl Renderable for TerrainEntity {
-    fn render(&self, view_proj_mat: &glm::Mat4) {
-        unsafe {
-            self.shader.activate();
-            gl::UniformMatrix4fv(
-                self.shader.get_uniform_location("view_proj"),
-                1,
-                gl::FALSE,
-                view_proj_mat.as_ptr(),
-            );
-            gl::UniformMatrix4fv(
-                self.shader.get_uniform_location("model_mat"),
-                1,
-                gl::FALSE,
-                self.model.as_ptr(),
-            );
-
-            self.displacement.activate(0);
-            gl::Uniform1i(self.shader.get_uniform_location("displacement_map"), 0);
-        }
-
-        self.vao.render();
-    }
 }
