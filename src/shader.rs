@@ -30,7 +30,7 @@ impl Shader {
         let name_cstr = CString::new(name).expect("CString::new failed");
         let id = gl::GetUniformLocation(self.program_id, name_cstr.as_ptr());
         if id == -1 {
-            panic!("Uniform {} not found.", name);
+            panic!("get_uniform_location: Uniform `{}` not found.", name);
         }
         id
     }

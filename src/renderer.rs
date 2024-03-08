@@ -4,15 +4,15 @@ use gl::types::GLfloat;
 use glutin::display::GlDisplay;
 use nalgebra_glm as glm;
 
-use crate::mesh::{Mesh, VAO};
-use crate::shader::{Shader, ShaderBuilder};
-use crate::texture::Texture;
+use crate::terrain::TerrainEntity;
+
+pub trait Renderable {
+    fn render(&self, view_proj_mat: &glm::Mat4);
+}
 
 pub struct Renderer {
     aspect_ratio: f32,
-    shader: Shader,
-    quad: VAO,
-    noise: Texture,
+    entities: Vec<Box<dyn Renderable>>,
 }
 
 impl Renderer {
@@ -34,30 +34,15 @@ impl Renderer {
             println!("Shaders version on {}", shaders_version.to_string_lossy());
         }
 
-        let shader = unsafe {
-            ShaderBuilder::new()
-                .with_shader_file("shaders/simple.vert")
-                .with_shader_file("shaders/simple.frag")
-                .link()
-                .expect("Shader had errors. See stdout.")
-        };
-
-        let quad = Mesh::quad_mesh(32);
-        let quad_vao = VAO::new_from_mesh(&quad);
-
         let mut viewport: [gl::types::GLint; 4] = [0; 4];
         unsafe {
             gl::GetIntegerv(gl::VIEWPORT, viewport.as_mut_ptr());
         }
         let aspect_ratio = viewport[2] as f32 / viewport[3] as f32;
 
-        let noise = Texture::noise(256, 256, 12345678);
-
         Self {
             aspect_ratio,
-            shader,
-            quad: quad_vao,
-            noise,
+            entities: vec![Box::new(TerrainEntity::from_scratch())],
         }
     }
 
@@ -79,32 +64,20 @@ impl Renderer {
 
         let projection: glm::Mat4 = glm::perspective(
             self.aspect_ratio,
-            80.0 * std::f32::consts::PI / 180.,
-            0.1,
-            350.0,
+            65.0 * std::f32::consts::PI / 180.,
+            0.1,  // 10 cm
+            50.0, // 50 m
         );
         let camera_transform = glm::look_at(
-            &glm::vec3(0.0, -2.0, 1.6),
-            &glm::vec3(0.0, 0.0, 0.5),
+            &glm::vec3(0.0, -4.0, 1.7), // Stand behind the scene with eye height 170cm
+            &glm::vec3(0.0, -1.0, 0.2), // Look at the floor near the center
             &glm::Vec3::z_axis(),
         );
-
         let view_proj_mat = projection * camera_transform;
 
-        unsafe {
-            self.shader.activate();
-            gl::UniformMatrix4fv(
-                self.shader.get_uniform_location("view_proj"),
-                1,
-                gl::FALSE,
-                view_proj_mat.as_ptr(),
-            );
-
-            self.noise.activate(0);
-            gl::Uniform1i(self.shader.get_uniform_location("noise_texture"), 0);
+        for entity in &self.entities {
+            entity.render(&view_proj_mat);
         }
-
-        self.quad.render();
     }
 
     pub fn resize(&mut self, width: i32, height: i32) {

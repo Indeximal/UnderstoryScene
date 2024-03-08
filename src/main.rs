@@ -17,6 +17,7 @@ mod error;
 mod mesh;
 mod renderer;
 mod shader;
+mod terrain;
 mod texture;
 
 /// This main function and the renderer architecture have been adapted and somewhat
