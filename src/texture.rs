@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use gl::types::GLuint;
+use image::GenericImageView;
 
 use crate::error::clear_gl_errors;
 use crate::error::get_gl_errors;
@@ -47,15 +48,67 @@ impl Texture {
                 T::to_glenum(),
                 data.as_ptr() as *const _,
             );
+            gl::GenerateMipmap(gl::TEXTURE_2D);
 
-            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+            gl::TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_MIN_FILTER,
+                gl::LINEAR_MIPMAP_LINEAR as i32,
+            );
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+            gl::TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_WRAP_S,
+                gl::MIRRORED_REPEAT as i32,
+            );
+            gl::TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_WRAP_T,
+                gl::MIRRORED_REPEAT as i32,
+            );
         }
         get_gl_errors().expect("Failed to create texture");
         Self {
             id,
             _marker: PhantomData,
         }
+    }
+
+    pub fn from_file(
+        path: impl AsRef<std::path::Path>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        use image::io::Reader as ImageReader;
+
+        let img = ImageReader::open(path)?.decode()?;
+        let (width, height) = img.dimensions();
+
+        img.as_rgba8()
+            .map(|img| {
+                Ok(Self::new::<u8, format::RGBA>(
+                    width,
+                    height,
+                    img.as_raw().as_slice(),
+                ))
+            })
+            .or_else(|| {
+                img.as_rgb8().map(|img| {
+                    Ok(Self::new::<u8, format::RGB>(
+                        width,
+                        height,
+                        img.as_raw().as_slice(),
+                    ))
+                })
+            })
+            .or_else(|| {
+                img.as_luma8().map(|img| {
+                    Ok(Self::new::<u8, format::GrayScale>(
+                        width,
+                        height,
+                        img.as_raw().as_slice(),
+                    ))
+                })
+            })
+            .unwrap_or_else(|| Err("Unsupported image format".into()))
     }
 
     pub fn activate(&self, texture_unit: u32) {
@@ -104,6 +157,17 @@ pub mod format {
         }
         fn to_glenum() -> gl::types::GLenum {
             gl::RGBA
+        }
+    }
+
+    pub struct RGB;
+    impl Sealed for RGB {}
+    impl TextureFormat for RGB {
+        fn num_components() -> usize {
+            3
+        }
+        fn to_glenum() -> gl::types::GLenum {
+            gl::RGB
         }
     }
 

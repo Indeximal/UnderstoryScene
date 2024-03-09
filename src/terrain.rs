@@ -12,6 +12,7 @@ use noise::{NoiseFn, ScalePoint};
 pub struct TerrainEntity {
     vao: Rc<VAO>,
     displacement: Rc<Texture>,
+    albedo: Rc<Texture>,
     model: glm::Mat4,
     shader: Rc<Shader>,
 }
@@ -40,9 +41,13 @@ impl TerrainEntity {
         // 6 by 6 meters size
         let model = glm::scale(&glm::identity(), &glm::vec3(3.0, 3.0, 1.0));
 
+        let albedo =
+            Texture::from_file("textures/ground1.jpeg").expect("Failed to load ground texture");
+
         TerrainEntity {
             vao: Rc::new(quad_vao),
             displacement: Rc::new(noise),
+            albedo: Rc::new(albedo),
             model,
             shader: Rc::new(terrain_shader),
         }
@@ -94,6 +99,9 @@ impl Renderable for TerrainEntity {
 
             self.displacement.activate(0);
             gl::Uniform1i(self.shader.get_uniform_location("displacement_map"), 0);
+
+            self.albedo.activate(1);
+            gl::Uniform1i(self.shader.get_uniform_location("terrain_albedo"), 1);
         }
 
         self.vao.render();

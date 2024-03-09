@@ -33,6 +33,11 @@ impl Renderer {
         if let Some(shaders_version) = get_gl_string(gl::SHADING_LANGUAGE_VERSION) {
             println!("Shaders version on {}", shaders_version.to_string_lossy());
         }
+        let mut max_texture_size: gl::types::GLint = 0;
+        unsafe {
+            gl::GetIntegerv(gl::MAX_TEXTURE_SIZE, &mut max_texture_size);
+        }
+        println!("Max texture size: {max_texture_size}px");
 
         let mut viewport: [gl::types::GLint; 4] = [0; 4];
         unsafe {

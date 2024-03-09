@@ -48,7 +48,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let (mut window, gl_config) = display_builder.build(&event_loop, template, gl_config_picker)?;
 
     // No idea what samples are meant here :shrug:
-    println!("Picked a config with {} samples", gl_config.num_samples());
+    // println!("Picked a config with {} samples", gl_config.num_samples());
 
     // XXX The display could be obtained from any object created by it, so we can
     // query it from the config.
