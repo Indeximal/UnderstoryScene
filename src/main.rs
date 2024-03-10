@@ -8,6 +8,7 @@ use glutin::prelude::*;
 use glutin::surface::SwapInterval;
 use glutin_winit::{self, DisplayBuilder, GlWindow};
 use renderer::Renderer;
+use scene::Scene;
 use winit::event::{Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoopBuilder;
 use winit::keyboard::{Key, NamedKey};
@@ -16,6 +17,7 @@ use winit::window::WindowBuilder;
 mod error;
 mod mesh;
 mod renderer;
+mod scene;
 mod shader;
 mod terrain;
 mod texture;
@@ -23,7 +25,7 @@ mod texture;
 /// This main function and the renderer architecture have been adapted and somewhat
 /// slimmed down from
 /// <https://github.com/rust-windowing/glutin/blob/e1bf1e22a3e2f0e3dc4213f85c10f33049ce8d77/glutin_examples/examples/window.rs>.
-/// The better place to start reading is in [`renderer`].
+/// The better place to start reading is in [`renderer`] or [`scene`].
 pub fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoopBuilder::new().build().unwrap();
 
@@ -63,6 +65,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     let mut state = None;
     let mut renderer = None;
+    let mut scene = None;
+
     event_loop.run(move |event, window_target| {
         match event {
             Event::Resumed => {
@@ -101,6 +105,9 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                     eprintln!("Error setting vsync: {res:?}");
                 }
 
+                // Does all the I/O operations and loading to the GPU.
+                scene.get_or_insert_with(|| Scene::load());
+
                 assert!(state.replace((gl_context, gl_surface, window)).is_none());
             }
             Event::WindowEvent { event, .. } => match event {
@@ -133,7 +140,11 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                 WindowEvent::RedrawRequested => {
                     if let Some((gl_context, gl_surface, window)) = &state {
                         let renderer = renderer.as_ref().unwrap();
-                        renderer.draw();
+                        renderer.draw(
+                            &scene
+                                .as_ref()
+                                .expect("Scene is loaded when renderer is created"),
+                        );
                         window.request_redraw();
 
                         gl_surface.swap_buffers(gl_context).unwrap();

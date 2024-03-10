@@ -1,10 +1,7 @@
 use std::ffi::{CStr, CString};
 
-use gl::types::GLfloat;
 use glutin::display::GlDisplay;
 use nalgebra_glm as glm;
-
-use crate::terrain::{BasePlate, TerrainEntity};
 
 pub trait Renderable {
     fn render(&self, view_proj_mat: &glm::Mat4);
@@ -12,7 +9,6 @@ pub trait Renderable {
 
 pub struct Renderer {
     aspect_ratio: f32,
-    entities: Vec<Box<dyn Renderable>>,
 }
 
 impl Renderer {
@@ -50,26 +46,11 @@ impl Renderer {
             gl::DepthFunc(gl::LESS);
         }
 
-        Self {
-            aspect_ratio,
-            entities: vec![
-                Box::new(TerrainEntity::from_scratch()),
-                Box::new(BasePlate::from_scratch()),
-            ],
-        }
+        Self { aspect_ratio }
     }
 
-    pub fn draw(&self) {
-        self.draw_with_clear_color(186. / 255., 219. / 255., 222. / 255., 1.0)
-    }
-
-    pub fn draw_with_clear_color(
-        &self,
-        red: GLfloat,
-        green: GLfloat,
-        blue: GLfloat,
-        alpha: GLfloat,
-    ) {
+    pub fn draw(&self, scene: &crate::scene::Scene) {
+        let (red, green, blue, alpha) = scene.background_color();
         unsafe {
             gl::ClearColor(red, green, blue, alpha);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
@@ -82,13 +63,13 @@ impl Renderer {
             50.0, // 50 m
         );
         let camera_transform = glm::look_at(
-            &glm::vec3(0.0, -4.0, 1.7), // Stand behind the scene with eye height 170cm
-            &glm::vec3(0.0, -1.0, 0.2), // Look at the floor near the center
+            &scene.eye_position(),
+            &scene.look_at(),
             &glm::Vec3::z_axis(),
         );
         let view_proj_mat = projection * camera_transform;
 
-        for entity in &self.entities {
+        for entity in &scene.entities {
             entity.render(&view_proj_mat);
         }
     }

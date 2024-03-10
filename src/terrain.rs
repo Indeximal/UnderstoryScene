@@ -9,12 +9,13 @@ use crate::texture::{format, Texture};
 use noise::{Add, ScaleBias};
 use noise::{NoiseFn, ScalePoint};
 
+#[derive(Clone)]
 pub struct TerrainEntity {
-    vao: Rc<VAO>,
-    displacement: Rc<Texture>,
-    albedo: Rc<Texture>,
-    model: glm::Mat4,
-    shader: Rc<Shader>,
+    pub vao: Rc<VAO>,
+    pub displacement: Rc<Texture>,
+    pub albedo: Rc<Texture>,
+    pub model: glm::Mat4,
+    pub shader: Rc<Shader>,
 }
 
 pub struct BasePlate {
