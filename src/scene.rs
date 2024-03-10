@@ -1,7 +1,9 @@
 use crate::renderer::Renderable;
 use crate::terrain::{BasePlate, TerrainEntity};
+use crate::texture::Texture;
 
 use nalgebra_glm as glm;
+use std::rc::Rc;
 use std::time::Instant;
 
 pub struct Scene {
@@ -14,8 +16,18 @@ impl Scene {
         let start = Instant::now();
 
         let timer = Instant::now();
-        let terrain_entity = TerrainEntity::from_scratch();
+        let ground_entity = TerrainEntity::from_scratch();
         println!("Loading the terrain took {}ms", timer.elapsed().as_millis());
+
+        let timer = Instant::now();
+        let leaves_texture = Texture::from_file("textures/leaves_masked1.png")
+            .expect("Loading leaves texture failed");
+        let leaves_entity = TerrainEntity {
+            albedo: Rc::new(leaves_texture),
+            model: glm::translate(&ground_entity.model, &glm::vec3(0.0, 0.0, 0.05)),
+            ..ground_entity.clone()
+        };
+        println!("Loading the leaves took {}ms", timer.elapsed().as_millis());
 
         let timer = Instant::now();
         let base_plate = BasePlate::from_scratch();
@@ -24,8 +36,11 @@ impl Scene {
             timer.elapsed().as_millis()
         );
 
-        let entities: Vec<Box<dyn Renderable>> =
-            vec![Box::new(terrain_entity), Box::new(base_plate)];
+        let entities: Vec<Box<dyn Renderable>> = vec![
+            Box::new(ground_entity),
+            Box::new(leaves_entity),
+            Box::new(base_plate),
+        ];
 
         println!("Total loading time: {}ms", start.elapsed().as_millis());
 
