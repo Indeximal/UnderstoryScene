@@ -15,6 +15,7 @@ use winit::keyboard::{Key, NamedKey};
 use winit::window::WindowBuilder;
 
 mod error;
+mod foliage;
 mod mesh;
 mod renderer;
 mod scene;

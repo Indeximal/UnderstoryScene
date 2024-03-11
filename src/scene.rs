@@ -1,3 +1,4 @@
+use crate::foliage::ShrubEntity;
 use crate::renderer::Renderable;
 use crate::terrain::{BasePlate, TerrainEntity};
 use crate::texture::Texture;
@@ -11,46 +12,48 @@ pub struct Scene {
     pub start_time: Instant,
 }
 
+macro_rules! time {
+    ($name:expr, $block:expr) => {{
+        let start = Instant::now();
+        let result = $block;
+        println!("Loading {} took {}ms", $name, start.elapsed().as_millis());
+        result
+    }};
+}
+
 impl Scene {
     pub fn load() -> Self {
-        println!("Loading scene...");
-        let start = Instant::now();
+        time!("scene", {
+            let ground_entity = time!("terrain", TerrainEntity::from_scratch());
 
-        let timer = Instant::now();
-        let ground_entity = TerrainEntity::from_scratch();
-        println!("Loading the terrain took {}ms", timer.elapsed().as_millis());
+            let leaves_entity = time!("leaves texture", {
+                let tex = Texture::from_file("textures/leaves_masked1.png")
+                    .expect("Loading leaves texture failed");
+                tex.enable_mipmap();
+                // TODO: additional noise, not just offset.
+                TerrainEntity {
+                    albedo: Rc::new(tex),
+                    model: glm::translate(&ground_entity.model, &glm::vec3(0.0, 0.0, 0.05)),
+                    ..ground_entity.clone()
+                }
+            });
 
-        let timer = Instant::now();
-        let leaves_texture = Texture::from_file("textures/leaves_masked1.png")
-            .expect("Loading leaves texture failed");
-        leaves_texture.enable_mipmap();
-        // TODO: additional noise, not just offset.
-        let leaves_entity = TerrainEntity {
-            albedo: Rc::new(leaves_texture),
-            model: glm::translate(&ground_entity.model, &glm::vec3(0.0, 0.0, 0.05)),
-            ..ground_entity.clone()
-        };
-        println!("Loading the leaves took {}ms", timer.elapsed().as_millis());
+            let base_plate = time!("base plate", BasePlate::from_scratch());
 
-        let timer = Instant::now();
-        let base_plate = BasePlate::from_scratch();
-        println!(
-            "Loading the base plate took {}ms",
-            timer.elapsed().as_millis()
-        );
+            let shrub = time!("shrub", ShrubEntity::from_scratch());
 
-        let entities: Vec<Box<dyn Renderable>> = vec![
-            Box::new(ground_entity),
-            Box::new(leaves_entity),
-            Box::new(base_plate),
-        ];
+            let entities: Vec<Box<dyn Renderable>> = vec![
+                Box::new(ground_entity),
+                Box::new(leaves_entity),
+                Box::new(base_plate),
+                Box::new(shrub),
+            ];
 
-        println!("Total loading time: {}ms", start.elapsed().as_millis());
-
-        Scene {
-            entities,
-            start_time: Instant::now(),
-        }
+            Scene {
+                entities,
+                start_time: Instant::now(),
+            }
+        })
     }
 
     pub fn background_color(&self) -> (f32, f32, f32, f32) {
