@@ -43,7 +43,7 @@ impl TerrainEntity {
         let model = glm::scale(&glm::identity(), &glm::vec3(3.0, 3.0, 1.0));
 
         let albedo =
-            Texture::from_file("textures/ground1.jpeg").expect("Failed to load ground texture");
+            Texture::from_file("textures/grass1.jpeg").expect("Failed to load ground texture");
 
         TerrainEntity {
             vao: Rc::new(quad_vao),

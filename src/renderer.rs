@@ -49,7 +49,7 @@ impl Renderer {
         Self { aspect_ratio }
     }
 
-    pub fn draw(&self, scene: &crate::scene::Scene) {
+    pub fn draw(&mut self, scene: &crate::scene::Scene) {
         let (red, green, blue, alpha) = scene.background_color();
         unsafe {
             gl::ClearColor(red, green, blue, alpha);

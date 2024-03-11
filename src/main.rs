@@ -139,7 +139,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                 } => window_target.exit(),
                 WindowEvent::RedrawRequested => {
                     if let Some((gl_context, gl_surface, window)) = &state {
-                        let renderer = renderer.as_ref().unwrap();
+                        let renderer = renderer.as_mut().unwrap();
                         renderer.draw(
                             &scene
                                 .as_ref()

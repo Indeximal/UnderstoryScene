@@ -8,6 +8,7 @@ use std::time::Instant;
 
 pub struct Scene {
     pub entities: Vec<Box<dyn Renderable>>,
+    pub start_time: Instant,
 }
 
 impl Scene {
@@ -22,6 +23,7 @@ impl Scene {
         let timer = Instant::now();
         let leaves_texture = Texture::from_file("textures/leaves_masked1.png")
             .expect("Loading leaves texture failed");
+        // TODO: additional noise, not just offset.
         let leaves_entity = TerrainEntity {
             albedo: Rc::new(leaves_texture),
             model: glm::translate(&ground_entity.model, &glm::vec3(0.0, 0.0, 0.05)),
@@ -44,7 +46,10 @@ impl Scene {
 
         println!("Total loading time: {}ms", start.elapsed().as_millis());
 
-        Scene { entities }
+        Scene {
+            entities,
+            start_time: Instant::now(),
+        }
     }
 
     pub fn background_color(&self) -> (f32, f32, f32, f32) {
@@ -52,7 +57,13 @@ impl Scene {
     }
 
     pub fn eye_position(&self) -> glm::Vec3 {
-        glm::vec3(0.0, -4.0, 1.7) // Stand behind the scene with eye height 170cm
+        let t = self.start_time.elapsed().as_secs_f32();
+        // Different phase and frequency for random looking movement
+        glm::vec3(
+            0.1 * (t * 0.32 + 1.).sin(),
+            0.03 * (t * 0.33 + 2.).sin(),
+            0.05 * (t * 0.34 + 3.).sin(),
+        ) + glm::vec3(0.0, -4.0, 1.7) // Stand behind the scene with eye height 170cm
     }
 
     pub fn look_at(&self) -> glm::Vec3 {
