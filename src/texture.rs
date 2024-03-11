@@ -48,13 +48,8 @@ impl Texture {
                 T::to_glenum(),
                 data.as_ptr() as *const _,
             );
-            gl::GenerateMipmap(gl::TEXTURE_2D);
 
-            gl::TexParameteri(
-                gl::TEXTURE_2D,
-                gl::TEXTURE_MIN_FILTER,
-                gl::LINEAR_MIPMAP_LINEAR as i32,
-            );
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
             gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
             gl::TexParameteri(
                 gl::TEXTURE_2D,
@@ -109,6 +104,20 @@ impl Texture {
                 })
             })
             .unwrap_or_else(|| Err("Unsupported image format".into()))
+    }
+
+    pub fn enable_mipmap(&self) {
+        unsafe {
+            gl::BindTexture(gl::TEXTURE_2D, self.id);
+            gl::GenerateMipmap(gl::TEXTURE_2D);
+
+            gl::TexParameteri(
+                gl::TEXTURE_2D,
+                gl::TEXTURE_MIN_FILTER,
+                gl::LINEAR_MIPMAP_LINEAR as i32,
+            );
+            gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+        }
     }
 
     pub fn activate(&self, texture_unit: u32) {

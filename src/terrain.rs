@@ -44,6 +44,7 @@ impl TerrainEntity {
 
         let albedo =
             Texture::from_file("textures/grass1.jpeg").expect("Failed to load ground texture");
+        albedo.enable_mipmap();
 
         TerrainEntity {
             vao: Rc::new(quad_vao),

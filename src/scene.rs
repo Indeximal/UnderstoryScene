@@ -23,6 +23,7 @@ impl Scene {
         let timer = Instant::now();
         let leaves_texture = Texture::from_file("textures/leaves_masked1.png")
             .expect("Loading leaves texture failed");
+        leaves_texture.enable_mipmap();
         // TODO: additional noise, not just offset.
         let leaves_entity = TerrainEntity {
             albedo: Rc::new(leaves_texture),
