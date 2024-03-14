@@ -40,7 +40,7 @@ impl Scene {
 
             let base_plate = time!("base plate", BasePlate::from_scratch());
 
-            let shrubs = time!("shrubs", ShrubEntities::from_scratch(100));
+            let shrubs = time!("shrubs", ShrubEntities::from_scratch(20));
 
             let entities: Vec<Box<dyn Renderable>> = vec![
                 Box::new(ground_entity),

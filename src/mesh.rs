@@ -279,7 +279,6 @@ impl InstancedMeshesVAO {
         };
 
         // Generate and load normal transformation matrices
-        // (Currently broken)
         let mut normal_mats: Vec<glm::Mat3> = Vec::with_capacity(models.len());
         for model_mat in models {
             let model_normal: glm::Mat3 =

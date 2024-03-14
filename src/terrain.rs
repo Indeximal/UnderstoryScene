@@ -60,8 +60,8 @@ impl BasePlate {
     pub fn from_scratch() -> Self {
         let shader = unsafe {
             ShaderBuilder::new()
-                .with_shader_file("shaders/simple_perspective.vert")
-                .with_shader_file("shaders/simple_const_color.frag")
+                .with_shader_file("shaders/composable_perspective.vert")
+                .with_shader_file("shaders/composable_const_color.frag")
                 .link()
                 .expect("Simple shader had errors. See stdout.")
         };
