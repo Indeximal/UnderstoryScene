@@ -1,4 +1,4 @@
-use crate::foliage::ShrubEntity;
+use crate::foliage::ShrubEntities;
 use crate::renderer::Renderable;
 use crate::terrain::{BasePlate, TerrainEntity};
 use crate::texture::Texture;
@@ -40,13 +40,13 @@ impl Scene {
 
             let base_plate = time!("base plate", BasePlate::from_scratch());
 
-            let shrub = time!("shrub", ShrubEntity::from_scratch());
+            let shrubs = time!("shrubs", ShrubEntities::from_scratch(100));
 
             let entities: Vec<Box<dyn Renderable>> = vec![
                 Box::new(ground_entity),
                 Box::new(leaves_entity),
                 Box::new(base_plate),
-                Box::new(shrub),
+                Box::new(shrubs),
             ];
 
             Scene {

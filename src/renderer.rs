@@ -35,6 +35,12 @@ impl Renderer {
         }
         println!("Max texture size: {max_texture_size}px");
 
+        let mut max_attrib_pointers: gl::types::GLint = 0;
+        unsafe {
+            gl::GetIntegerv(gl::MAX_VERTEX_ATTRIBS, &mut max_attrib_pointers);
+        }
+        println!("Max attrib pointers: {max_attrib_pointers}");
+
         let mut viewport: [gl::types::GLint; 4] = [0; 4];
         unsafe {
             gl::GetIntegerv(gl::VIEWPORT, viewport.as_mut_ptr());

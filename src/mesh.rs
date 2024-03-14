@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use gl::types::GLuint;
+use nalgebra_glm as glm;
 use tobj;
 
 use crate::error::{clear_gl_errors, get_gl_errors};
@@ -12,6 +13,14 @@ pub const TANGENT_ATTRIB_PTR: u32 = 2;
 #[allow(dead_code)]
 pub const BITANGENT_ATTRIB_PTR: u32 = 3;
 pub const UV_ATTRIB_PTR: u32 = 4;
+
+pub const MODEL_MAT_ATTRIB_PTR_1: u32 = 8;
+pub const MODEL_MAT_ATTRIB_PTR_2: u32 = 9;
+pub const MODEL_MAT_ATTRIB_PTR_3: u32 = 10;
+pub const MODEL_MAT_ATTRIB_PTR_4: u32 = 11;
+pub const MODEL_NORMAL_ATTRIB_PTR_1: u32 = 12;
+pub const MODEL_NORMAL_ATTRIB_PTR_2: u32 = 13;
+pub const MODEL_NORMAL_ATTRIB_PTR_3: u32 = 14;
 
 pub struct Mesh {
     /// Cyclic X, Y, Z components
@@ -25,13 +34,23 @@ pub struct Mesh {
     pub indices: Vec<u32>,
 }
 
-/// A mesh stored on the GPU.
+/// Some data stored on the GPU.
 pub struct VAO {
-    index_count: usize,
-    vao: GLuint,
+    id: GLuint,
     vbos: Vec<GLuint>,
     /// Mark the vao as !Send and !Sync, since OpenGL is not thread safe
     _marker: PhantomData<*const ()>,
+}
+
+pub struct ElementMeshVAO {
+    index_count: usize,
+    vao: VAO,
+}
+
+pub struct InstancedMeshesVAO {
+    index_count_per_instance: usize,
+    instance_count: usize,
+    vao: VAO,
 }
 
 impl Mesh {
@@ -46,8 +65,6 @@ impl Mesh {
     }
 
     pub fn load(path: &str) -> Self {
-        println!("Loading model...");
-        let before = std::time::Instant::now();
         let (models, _materials) = tobj::load_obj(
             path,
             &tobj::LoadOptions {
@@ -57,11 +74,6 @@ impl Mesh {
             },
         )
         .expect("Failed to load model");
-        let after = std::time::Instant::now();
-        println!(
-            "Done in {:.3}ms.",
-            after.duration_since(before).as_micros() as f32 / 1e3
-        );
 
         if models.len() > 1 || models.len() == 0 {
             panic!("Please use a model with a single mesh!")
@@ -72,7 +84,7 @@ impl Mesh {
 
         let terrain = models[0].to_owned();
         println!(
-            "Loaded {} with {} points and {} triangles.",
+            "Loaded {} with {} vertices and {} triangles.",
             terrain.name,
             terrain.mesh.positions.len() / 3,
             terrain.mesh.indices.len() / 3,
@@ -165,7 +177,7 @@ impl Mesh {
     }
 }
 
-impl VAO {
+impl ElementMeshVAO {
     /// Loads the mesh data onto the GPU.
     ///
     /// The VAO's attributes are configured according to the constants in this module.
@@ -201,11 +213,13 @@ impl VAO {
 
         get_gl_errors().expect("Generating the mesh buffer run into errors");
 
-        VAO {
-            vao: vao_id,
+        ElementMeshVAO {
             index_count: mesh.indices.len(),
-            vbos: vec![position_vbo, normal_vbo, uvs_vbo, index_vbo],
-            _marker: PhantomData,
+            vao: VAO {
+                id: vao_id,
+                vbos: vec![position_vbo, normal_vbo, uvs_vbo, index_vbo],
+                _marker: PhantomData,
+            },
         }
     }
 
@@ -213,7 +227,7 @@ impl VAO {
         // SAFETY: VAO id was created in the constructor, errors were checked,
         // and the object is on the same thread.
         unsafe {
-            gl::BindVertexArray(self.vao);
+            gl::BindVertexArray(self.vao.id);
             gl::DrawElements(
                 gl::TRIANGLES,
                 self.index_count as i32,
@@ -224,11 +238,103 @@ impl VAO {
     }
 }
 
+impl InstancedMeshesVAO {
+    pub fn from_existing_with_models(mut single_vao: ElementMeshVAO, models: &[glm::Mat4]) -> Self {
+        // Matrices as attributes need a pointer for each column, ie 3 or 4 attribs.
+        unsafe fn set_vertex_attrib_pointer(attrib_ptr: u32, offset: usize, components: usize) {
+            let vec_size = components * std::mem::size_of::<f32>();
+            gl::EnableVertexAttribArray(attrib_ptr);
+            gl::VertexAttribPointer(
+                attrib_ptr,
+                components as i32,
+                gl::FLOAT,
+                gl::FALSE,
+                (components * vec_size) as gl::types::GLint,
+                (offset * vec_size) as *const _,
+            );
+            // Set as instance attribute
+            gl::VertexAttribDivisor(attrib_ptr, 1);
+        }
+
+        // SAFETY: glm::Mat4 are represented as 16 densely packed floats
+        let model_mats_vbo = unsafe {
+            gl::BindVertexArray(single_vao.vao.id);
+
+            let mut vbo = 0;
+            gl::GenBuffers(1, &mut vbo);
+            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                (models.len() * std::mem::size_of::<glm::Mat4>()) as gl::types::GLsizeiptr,
+                models.as_ptr() as *const _,
+                gl::STATIC_DRAW,
+            );
+
+            set_vertex_attrib_pointer(MODEL_MAT_ATTRIB_PTR_1, 0, 4);
+            set_vertex_attrib_pointer(MODEL_MAT_ATTRIB_PTR_2, 1, 4);
+            set_vertex_attrib_pointer(MODEL_MAT_ATTRIB_PTR_3, 2, 4);
+            set_vertex_attrib_pointer(MODEL_MAT_ATTRIB_PTR_4, 3, 4);
+
+            vbo
+        };
+
+        // Generate and load normal transformation matrices
+        // (Currently broken)
+        let mut normal_mats: Vec<glm::Mat3> = Vec::with_capacity(models.len());
+        for model_mat in models {
+            let model_normal: glm::Mat3 =
+                glm::mat4_to_mat3(&glm::transpose(&glm::inverse(&model_mat)));
+            normal_mats.push(model_normal);
+        }
+
+        let normal_mats_vbo = unsafe {
+            gl::BindVertexArray(single_vao.vao.id);
+
+            let mut vbo = 0;
+            gl::GenBuffers(1, &mut vbo);
+            gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                (normal_mats.len() * std::mem::size_of::<glm::Mat3>()) as gl::types::GLsizeiptr,
+                normal_mats.as_ptr() as *const _,
+                gl::STATIC_DRAW,
+            );
+
+            set_vertex_attrib_pointer(MODEL_NORMAL_ATTRIB_PTR_1, 0, 3);
+            set_vertex_attrib_pointer(MODEL_NORMAL_ATTRIB_PTR_2, 1, 3);
+            set_vertex_attrib_pointer(MODEL_NORMAL_ATTRIB_PTR_3, 2, 3);
+
+            vbo
+        };
+        single_vao.vao.vbos.push(model_mats_vbo);
+        single_vao.vao.vbos.push(normal_mats_vbo);
+
+        Self {
+            index_count_per_instance: single_vao.index_count,
+            instance_count: models.len(),
+            vao: single_vao.vao,
+        }
+    }
+
+    pub fn render(&self) {
+        unsafe {
+            gl::BindVertexArray(self.vao.id);
+            gl::DrawElementsInstanced(
+                gl::TRIANGLES,
+                self.index_count_per_instance as i32,
+                gl::UNSIGNED_INT,
+                std::ptr::null(),
+                self.instance_count as i32,
+            );
+        }
+    }
+}
+
 impl Drop for VAO {
     fn drop(&mut self) {
         unsafe {
             gl::DeleteBuffers(self.vbos.len() as i32, self.vbos.as_ptr());
-            gl::DeleteVertexArrays(1, &self.vao);
+            gl::DeleteVertexArrays(1, &self.id);
         }
     }
 }

@@ -1,7 +1,7 @@
 use nalgebra_glm as glm;
 use std::rc::Rc;
 
-use crate::mesh::{Mesh, VAO};
+use crate::mesh::{ElementMeshVAO, Mesh};
 use crate::renderer::Renderable;
 use crate::shader::{Shader, ShaderBuilder};
 use crate::texture::{format, Texture};
@@ -11,7 +11,7 @@ use noise::{NoiseFn, ScalePoint};
 
 #[derive(Clone)]
 pub struct TerrainEntity {
-    pub vao: Rc<VAO>,
+    pub vao: Rc<ElementMeshVAO>,
     pub displacement: Rc<Texture>,
     pub albedo: Rc<Texture>,
     pub model: glm::Mat4,
@@ -19,7 +19,7 @@ pub struct TerrainEntity {
 }
 
 pub struct BasePlate {
-    vao: Rc<VAO>,
+    vao: Rc<ElementMeshVAO>,
     model: glm::Mat4,
     shader: Rc<Shader>,
 }
@@ -37,7 +37,7 @@ impl TerrainEntity {
         };
 
         let quad = Mesh::quad_mesh(256);
-        let quad_vao = VAO::new_from_mesh(&quad);
+        let quad_vao = ElementMeshVAO::new_from_mesh(&quad);
         let noise = noise_texture(128, 128, 12345678);
         // 6 by 6 meters size
         let model = glm::scale(&glm::identity(), &glm::vec3(3.0, 3.0, 1.0));
@@ -67,7 +67,7 @@ impl BasePlate {
         };
 
         let quad = Mesh::quad();
-        let quad_vao = VAO::new_from_mesh(&quad);
+        let quad_vao = ElementMeshVAO::new_from_mesh(&quad);
         // 100 by 100 meters size
         let model = glm::translate(
             &glm::scale(&glm::identity(), &glm::vec3(100.0, 100.0, 1.0)),
