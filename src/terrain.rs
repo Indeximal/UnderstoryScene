@@ -4,10 +4,10 @@ use std::rc::Rc;
 use crate::mesh::{ElementMeshVAO, Mesh};
 use crate::renderer::Renderable;
 use crate::shader::{Shader, ShaderBuilder};
-use crate::texture::{format, Texture};
+use crate::texture::Texture;
 
+use noise::ScalePoint;
 use noise::{Add, ScaleBias};
-use noise::{NoiseFn, ScalePoint};
 
 #[derive(Clone)]
 pub struct TerrainEntity {
@@ -27,7 +27,7 @@ pub struct BasePlate {
 impl TerrainEntity {
     /// This is not particularly smart to use more than once, as it
     /// does not share textures, shaders or buffers.
-    pub fn from_scratch() -> Self {
+    pub fn from_scratch(seed: u32) -> Self {
         let terrain_shader = unsafe {
             ShaderBuilder::new()
                 .with_shader_file("shaders/terrain.vert")
@@ -38,7 +38,7 @@ impl TerrainEntity {
 
         let quad = Mesh::quad_mesh(256);
         let quad_vao = ElementMeshVAO::new_from_mesh(&quad);
-        let noise = noise_texture(128, 128, 12345678);
+        let noise = noise_texture(128, 128, seed);
         // 6 by 6 meters size
         let model = glm::scale(&glm::identity(), &glm::vec3(3.0, 3.0, 1.0));
 
@@ -151,23 +151,5 @@ fn noise_texture(width: u32, height: u32, seed: u32) -> Texture {
 
     let noise = Add::new(Add::new(octave0, octave1), octave2);
 
-    // Copied the internals of [`noise::utils::PlaneMapBuilder`], since I
-    // want to get the vector directly.
-    let mut result_map = vec![0.0f32; (width * height) as usize];
-
-    let x_bounds = (-1.0, 1.0);
-    let y_bounds = (-1.0, 1.0);
-    let x_step = (x_bounds.1 - x_bounds.0) / width as f64;
-    let y_step = (y_bounds.1 - y_bounds.0) / height as f64;
-
-    for y in 0..height {
-        for x in 0..width {
-            let current_y = y_bounds.0 + y_step * y as f64;
-            let current_x = x_bounds.0 + x_step * x as f64;
-
-            result_map[(y * width + x) as usize] = noise.get([current_x, current_y]) as f32;
-        }
-    }
-
-    Texture::new::<f32, format::GrayScale>(width, height, result_map.as_slice())
+    Texture::from_noise(noise, width, height)
 }

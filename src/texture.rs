@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use gl::types::GLuint;
 use image::GenericImageView;
+use noise::NoiseFn;
 
 use crate::error::clear_gl_errors;
 use crate::error::get_gl_errors;
@@ -104,6 +105,29 @@ impl Texture {
                 })
             })
             .unwrap_or_else(|| Err("Unsupported image format".into()))
+    }
+
+    pub fn from_noise(noise: impl NoiseFn<f64, 2>, width: u32, height: u32) -> Self {
+        // Copied the internals of [`noise::utils::PlaneMapBuilder`], since I
+        // want to get the vector directly.
+        let mut result_map = vec![0.0f32; (width * height) as usize];
+
+        // FIXME: adjustable and aspect ratio conserving bounds.
+        let x_bounds = (-1.0, 1.0);
+        let y_bounds = (-1.0, 1.0);
+        let x_step = (x_bounds.1 - x_bounds.0) / width as f64;
+        let y_step = (y_bounds.1 - y_bounds.0) / height as f64;
+
+        for y in 0..height {
+            for x in 0..width {
+                let current_y = y_bounds.0 + y_step * y as f64;
+                let current_x = x_bounds.0 + x_step * x as f64;
+
+                result_map[(y * width + x) as usize] = noise.get([current_x, current_y]) as f32;
+            }
+        }
+
+        Self::new::<f32, format::GrayScale>(width, height, result_map.as_slice())
     }
 
     pub fn enable_mipmap(&self) {

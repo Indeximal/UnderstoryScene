@@ -24,7 +24,7 @@ macro_rules! time {
 impl Scene {
     pub fn load() -> Self {
         time!("scene", {
-            let ground_entity = time!("terrain", TerrainEntity::from_scratch());
+            let ground_entity = time!("terrain", TerrainEntity::from_scratch(123456));
 
             let leaves_entity = time!("leaves texture", {
                 let tex = Texture::from_file("textures/leaves_masked1.png")
@@ -40,7 +40,7 @@ impl Scene {
 
             let base_plate = time!("base plate", BasePlate::from_scratch());
 
-            let shrubs = time!("shrubs", ShrubEntities::from_scratch(20));
+            let shrubs = time!("shrubs", ShrubEntities::from_scratch(150, 424242));
 
             let entities: Vec<Box<dyn Renderable>> = vec![
                 Box::new(ground_entity),

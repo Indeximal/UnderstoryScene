@@ -3,6 +3,10 @@ use crate::renderer::Renderable;
 use crate::shader::{Shader, ShaderBuilder};
 
 use nalgebra_glm as glm;
+use noise::{MultiFractal, NoiseFn};
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
+use rand_distr::{Distribution, Poisson};
 use std::rc::Rc;
 
 #[derive(Clone)]
@@ -13,7 +17,7 @@ pub struct ShrubEntities {
 }
 
 impl ShrubEntities {
-    pub fn from_scratch(num: usize) -> Self {
+    pub fn from_scratch(num: usize, seed: u32) -> Self {
         let shader = unsafe {
             ShaderBuilder::new()
                 .with_shader_file("shaders/composable_instanced.vert")
@@ -28,20 +32,27 @@ impl ShrubEntities {
         let color = glm::vec3(71. / 255., 49. / 255., 68. / 255.);
         let scale = 0.7;
 
-        let mut model_mats = Vec::with_capacity(num);
-        for i in 0..num {
-            let f = i as f32 / num as f32;
+        let distr = probability_distribution(num as f64 / 36.0, seed);
+        let positions =
+            generate_points_on_distribution(distr, (-3.0, 3.0, -3.0, 3.0), seed as u64 + 1);
 
-            let pos = glm::vec3(6. * f - 3., -2., 0.0);
-            // For some very weird ass reason, do the translate & scale functions right multiply,
-            // thus for scale than translate, I need to translate then scale...
-            let model = glm::scale(
-                &glm::rotate_z(&glm::translate(&glm::identity(), &pos), f * 6.28),
-                &glm::vec3(scale, scale, scale),
-            );
+        println!("Spawned {} shrubs", positions.len());
 
-            model_mats.push(model);
-        }
+        // For some very weird ass reason do the translate & scale functions right multiply,
+        // thus for scale than translate, I need to translate then scale...
+
+        let model_mats: Vec<glm::Mat4> = positions
+            .into_iter()
+            .map(|p| {
+                glm::scale(
+                    &glm::rotate_z(
+                        &glm::translate(&glm::identity(), &glm::vec3(p.x, p.y, 0.0)),
+                        0.0,
+                    ),
+                    &glm::vec3(scale, scale, scale),
+                )
+            })
+            .collect();
 
         let instanced_vao = InstancedMeshesVAO::from_existing_with_models(mesh_vao, &model_mats);
 
@@ -73,4 +84,71 @@ impl Renderable for ShrubEntities {
 
         self.vao.render();
     }
+}
+
+/// Note that the `density` might not actually be the average, since
+/// this is too difficult to enforce. Just some scale approximately in the same
+/// order as the average.
+fn probability_distribution(density: f64, seed: u32) -> impl NoiseFn<f64, 2> {
+    let noise = noise::Fbm::<noise::Perlin>::new(seed)
+        .set_octaves(4) // Not very much detail required
+        .set_frequency(0.2); // Large scale features approx 5 meters large
+
+    // Transform from [-1, 1] to [0, density]
+    let noise = noise::ScaleBias::new(noise)
+        .set_bias(1.0)
+        .set_scale(density / 2.0);
+
+    // Make it less uniform.
+    let noise = noise::Power::new(noise, noise::Constant::new(5.0));
+    noise
+}
+
+/// Generates random points in a rectangle according to the given density distribution.
+///
+/// It does this sampling the distribution at discrete locations and then drawing
+/// from a poission variable N with expected value equal to the density times the
+/// area of the chunk. In this tiny chunk the N points are uniformly distributed.
+///
+/// Given the same seed and distribution, this function is deterministic.
+///
+/// The distribution is assumed to be normalized, ie the value of an integral over a
+/// unit area should be the number of points in this area.
+/// The unit is therefore [number of points / area].
+fn generate_points_on_distribution(
+    distribution: impl NoiseFn<f64, 2>,
+    (x_min, x_max, y_min, y_max): (f32, f32, f32, f32),
+    seed: u64,
+) -> Vec<glm::Vec2> {
+    let mut points = Vec::new();
+    let resolution = 100;
+
+    let dx = (x_max - x_min) / resolution as f32;
+    let dy = (y_max - y_min) / resolution as f32;
+    let area = dx * dy;
+
+    let mut rng = StdRng::seed_from_u64(seed);
+
+    for x in 0..resolution {
+        for y in 0..resolution {
+            let fx = x_min + dx * x as f32;
+            let fy = y_min + dy * y as f32;
+
+            let density =
+                distribution.get([(fx + dx / 2.).into(), (fy + dy / 2.).into()]) as f32 * area;
+            if density <= 0.0 {
+                continue;
+            }
+
+            let poisson = Poisson::new(density).expect("density should be positive and a number");
+            let num_points_in_chunk = poisson.sample(&mut rng);
+
+            for _ in 0..num_points_in_chunk as usize {
+                let point = glm::vec2(fx + dx * rng.gen::<f32>(), fy + dy * rng.gen::<f32>());
+                points.push(point);
+            }
+        }
+    }
+
+    points
 }
