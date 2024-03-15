@@ -1,6 +1,6 @@
 use crate::foliage::ShrubEntities;
 use crate::renderer::Renderable;
-use crate::terrain::{BasePlate, TerrainEntity};
+use crate::terrain::{self, BasePlate, TerrainEntity};
 use crate::texture::Texture;
 
 use nalgebra_glm as glm;
@@ -24,7 +24,9 @@ macro_rules! time {
 impl Scene {
     pub fn load() -> Self {
         time!("scene", {
-            let ground_entity = time!("terrain", TerrainEntity::from_scratch(123456));
+            let height_map = terrain::height_map(424242);
+
+            let ground_entity = time!("terrain", TerrainEntity::from_scratch(&height_map));
 
             let leaves_entity = time!("leaves texture", {
                 let tex = Texture::from_file("textures/leaves_masked1.png")
@@ -40,7 +42,10 @@ impl Scene {
 
             let base_plate = time!("base plate", BasePlate::from_scratch());
 
-            let shrubs = time!("shrubs", ShrubEntities::from_scratch(150, 424242));
+            let shrubs = time!(
+                "shrubs",
+                ShrubEntities::from_scratch(1000, 424247, &height_map)
+            );
 
             let entities: Vec<Box<dyn Renderable>> = vec![
                 Box::new(ground_entity),

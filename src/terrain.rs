@@ -6,8 +6,8 @@ use crate::renderer::Renderable;
 use crate::shader::{Shader, ShaderBuilder};
 use crate::texture::Texture;
 
-use noise::ScalePoint;
 use noise::{Add, ScaleBias};
+use noise::{NoiseFn, ScalePoint};
 
 #[derive(Clone)]
 pub struct TerrainEntity {
@@ -27,7 +27,7 @@ pub struct BasePlate {
 impl TerrainEntity {
     /// This is not particularly smart to use more than once, as it
     /// does not share textures, shaders or buffers.
-    pub fn from_scratch(seed: u32) -> Self {
+    pub fn from_scratch(height_fn: &impl NoiseFn<f64, 2>) -> Self {
         let terrain_shader = unsafe {
             ShaderBuilder::new()
                 .with_shader_file("shaders/terrain.vert")
@@ -38,7 +38,7 @@ impl TerrainEntity {
 
         let quad = Mesh::quad_mesh(256);
         let quad_vao = ElementMeshVAO::new_from_mesh(&quad);
-        let noise = noise_texture(128, 128, seed);
+        let height_tex = Texture::from_noise(height_fn, 128, 128);
         // 6 by 6 meters size
         let model = glm::scale(&glm::identity(), &glm::vec3(3.0, 3.0, 1.0));
 
@@ -48,7 +48,7 @@ impl TerrainEntity {
 
         TerrainEntity {
             vao: Rc::new(quad_vao),
-            displacement: Rc::new(noise),
+            displacement: Rc::new(height_tex),
             albedo: Rc::new(albedo),
             model,
             shader: Rc::new(terrain_shader),
@@ -138,7 +138,7 @@ impl Renderable for BasePlate {
     }
 }
 
-fn noise_texture(width: u32, height: u32, seed: u32) -> Texture {
+pub fn height_map(seed: u32) -> impl NoiseFn<f64, 2> {
     let octave0 = ScaleBias::new(ScalePoint::new(noise::Value::new(seed + 1)).set_scale(2.))
         .set_scale(0.5)
         .set_bias(0.5);
@@ -150,6 +150,7 @@ fn noise_texture(width: u32, height: u32, seed: u32) -> Texture {
         .set_bias(0.125);
 
     let noise = Add::new(Add::new(octave0, octave1), octave2);
+    let noise = ScaleBias::new(noise).set_scale(0.2);
 
-    Texture::from_noise(noise, width, height)
+    noise
 }

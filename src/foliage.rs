@@ -6,7 +6,7 @@ use nalgebra_glm as glm;
 use noise::{MultiFractal, NoiseFn};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use rand_distr::{Distribution, Poisson};
+use rand_distr::{Distribution, Poisson, Uniform};
 use std::rc::Rc;
 
 #[derive(Clone)]
@@ -17,7 +17,7 @@ pub struct ShrubEntities {
 }
 
 impl ShrubEntities {
-    pub fn from_scratch(num: usize, seed: u32) -> Self {
+    pub fn from_scratch(num: usize, seed: u32, height_map: &impl NoiseFn<f64, 2>) -> Self {
         let shader = unsafe {
             ShaderBuilder::new()
                 .with_shader_file("shaders/composable_instanced.vert")
@@ -26,7 +26,7 @@ impl ShrubEntities {
                 .expect("Simple shader had errors. See stdout.")
         };
 
-        let mesh = Mesh::load("models/shrub1.obj");
+        let mesh = Mesh::load("models/shrub2.obj");
         let mesh_vao = ElementMeshVAO::new_from_mesh(&mesh);
 
         let color = glm::vec3(71. / 255., 49. / 255., 68. / 255.);
@@ -41,15 +41,25 @@ impl ShrubEntities {
         // For some very weird ass reason do the translate & scale functions right multiply,
         // thus for scale than translate, I need to translate then scale...
 
+        let mut rng = StdRng::seed_from_u64(seed as u64 + 2);
+
         let model_mats: Vec<glm::Mat4> = positions
             .into_iter()
             .map(|p| {
+                // TODO: rotation based on height gradient
+                let rotation_angle: f32 = rng.sample(Uniform::new(0.0, 6.28));
+                // TODO: scale in a more natural distribution
+                let z_scale: f32 = rng.sample(Uniform::new(0.4, 1.0));
+
                 glm::scale(
                     &glm::rotate_z(
-                        &glm::translate(&glm::identity(), &glm::vec3(p.x, p.y, 0.0)),
-                        0.0,
+                        &glm::translate(
+                            &glm::identity(),
+                            &glm::vec3(p.x, p.y, height_map.get([p.x as f64, p.y as f64]) as f32),
+                        ),
+                        rotation_angle,
                     ),
-                    &glm::vec3(scale, scale, scale),
+                    &glm::vec3(scale, scale, scale * z_scale),
                 )
             })
             .collect();
@@ -89,6 +99,8 @@ impl Renderable for ShrubEntities {
 /// Note that the `density` might not actually be the average, since
 /// this is too difficult to enforce. Just some scale approximately in the same
 /// order as the average.
+///
+/// FIXME: more consitent shrub number
 fn probability_distribution(density: f64, seed: u32) -> impl NoiseFn<f64, 2> {
     let noise = noise::Fbm::<noise::Perlin>::new(seed)
         .set_octaves(4) // Not very much detail required
@@ -99,8 +111,8 @@ fn probability_distribution(density: f64, seed: u32) -> impl NoiseFn<f64, 2> {
         .set_bias(1.0)
         .set_scale(density / 2.0);
 
-    // Make it less uniform.
-    let noise = noise::Power::new(noise, noise::Constant::new(5.0));
+    // // Make it less uniform.
+    // let noise = noise::Power::new(noise, noise::Constant::new(5.0));
     noise
 }
 

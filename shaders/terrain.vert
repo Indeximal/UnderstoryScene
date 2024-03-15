@@ -14,7 +14,7 @@ uniform mat4 model_mat;
 const float dx = 0.01;
 
 float sample_displacement(vec2 uv) {
-    return 0.2 * texture(displacement_map, uv).r;
+    return texture(displacement_map, uv).r;
 }
 
 void main() {
