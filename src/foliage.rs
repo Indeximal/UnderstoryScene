@@ -1,36 +1,39 @@
 use crate::mesh::{ElementMeshVAO, InstancedMeshesVAO, Mesh};
 use crate::renderer::Renderable;
 use crate::shader::{Shader, ShaderBuilder};
+use crate::texture::{format, Texture};
 
 use nalgebra_glm as glm;
 use noise::{MultiFractal, NoiseFn};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
-use rand_distr::{Distribution, Poisson, Uniform};
+use rand_distr::Uniform;
 use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct ShrubEntities {
-    pub color: glm::Vec3,
+    pub albedo: Rc<Texture>,
     pub vao: Rc<InstancedMeshesVAO>,
     pub shader: Rc<Shader>,
 }
 
 impl ShrubEntities {
-    pub fn from_scratch(num: usize, seed: u32, height_map: &impl NoiseFn<f64, 2>) -> Self {
+    pub fn from_scratch(
+        num: usize,
+        seed: u32,
+        height_map: &impl NoiseFn<f64, 2>,
+        model: &str,
+    ) -> Self {
         let shader = unsafe {
             ShaderBuilder::new()
                 .with_shader_file("shaders/composable_instanced.vert")
-                .with_shader_file("shaders/composable_shaded_color.frag")
+                .with_shader_file("shaders/composable_shaded_texture.frag")
                 .link()
                 .expect("Simple shader had errors. See stdout.")
         };
 
-        let mesh = Mesh::load("models/shrub2.obj");
+        let mesh = Mesh::load(model);
         let mesh_vao = ElementMeshVAO::new_from_mesh(&mesh);
-
-        let color = glm::vec3(71. / 255., 49. / 255., 68. / 255.);
-        let scale = 0.7;
 
         let distr = probability_distribution(num as f64 / 36.0, seed);
         let positions =
@@ -59,15 +62,21 @@ impl ShrubEntities {
                         ),
                         rotation_angle,
                     ),
-                    &glm::vec3(scale, scale, scale * z_scale),
+                    &glm::vec3(1.0, 1.0, z_scale),
                 )
             })
             .collect();
 
         let instanced_vao = InstancedMeshesVAO::from_existing_with_models(mesh_vao, &model_mats);
 
+        let color_texture = Texture::new::<f32, format::RGBA>(
+            1,
+            1,
+            (vec![71. / 255., 49. / 255., 68. / 255., 1.0]).as_slice(),
+        );
+
         ShrubEntities {
-            color,
+            albedo: Rc::new(color_texture),
             vao: Rc::new(instanced_vao),
             shader: Rc::new(shader),
         }
@@ -85,11 +94,9 @@ impl Renderable for ShrubEntities {
                 gl::FALSE,
                 view_proj_mat.as_ptr(),
             );
-            gl::Uniform3fv(
-                self.shader.get_uniform_location("color"),
-                1,
-                self.color.as_ptr(),
-            );
+
+            self.albedo.activate(0);
+            gl::Uniform1i(self.shader.get_uniform_location("albedo"), 0);
         }
 
         self.vao.render();
@@ -141,6 +148,7 @@ fn generate_points_on_distribution(
 
     let mut rng = StdRng::seed_from_u64(seed);
 
+    // Y is going front to back. Potentially reducing double drawing.
     for x in 0..resolution {
         for y in 0..resolution {
             let fx = x_min + dx * x as f32;
@@ -152,8 +160,7 @@ fn generate_points_on_distribution(
                 continue;
             }
 
-            let poisson = Poisson::new(density).expect("density should be positive and a number");
-            let num_points_in_chunk = poisson.sample(&mut rng);
+            let num_points_in_chunk = (density + rng.gen::<f32>()).floor() as usize;
 
             for _ in 0..num_points_in_chunk as usize {
                 let point = glm::vec2(fx + dx * rng.gen::<f32>(), fy + dy * rng.gen::<f32>());

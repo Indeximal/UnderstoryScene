@@ -21,8 +21,6 @@ void main() {
     color = (color1 + color2) / 2.;
     if (color.a < 0.6) {
         discard;
-    } else {
-        color.a = 1.0;
     }
 
     // Shading based on normal (half ambient, half diffuse from above)
@@ -36,4 +34,6 @@ void main() {
     } else {
         
     }
+
+    color.a = 1.0;
 }

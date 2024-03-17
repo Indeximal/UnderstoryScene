@@ -44,7 +44,12 @@ impl Scene {
 
             let shrubs = time!(
                 "shrubs",
-                ShrubEntities::from_scratch(1000, 424247, &height_map)
+                ShrubEntities::from_scratch(500, 424247, &height_map, "models/shrub2.obj")
+            );
+
+            let bushes = time!(
+                "bushes",
+                ShrubEntities::from_scratch(1000, 777780, &height_map, "models/bush1.obj")
             );
 
             let entities: Vec<Box<dyn Renderable>> = vec![
@@ -52,6 +57,7 @@ impl Scene {
                 Box::new(leaves_entity),
                 Box::new(base_plate),
                 Box::new(shrubs),
+                Box::new(bushes),
             ];
 
             Scene {
