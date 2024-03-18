@@ -11,7 +11,7 @@ out vec4 out_color;
 const vec3 light_up = normalize(vec3(0.5, 0.5, 1.0));
 
 void main() {
-    vec4 color = texture(albedo, v_texcord);
+    vec4 color = texture(albedo, v_texcord, -1.5);
 
     // Cheap order independent transparency
     if (color.a <= 0.5) {

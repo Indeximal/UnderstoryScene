@@ -1,9 +1,10 @@
-use crate::foliage::ShrubEntities;
+use crate::foliage::ShrubEntitiesBuilder;
 use crate::renderer::Renderable;
 use crate::terrain::{self, BasePlate, TerrainEntity};
 use crate::texture::Texture;
 
 use nalgebra_glm as glm;
+use noise::NoiseFn;
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -24,9 +25,9 @@ macro_rules! time {
 impl Scene {
     pub fn load() -> Self {
         time!("scene", {
-            let height_map = terrain::height_map(424242);
+            let height_map: Rc<dyn NoiseFn<f64, 2>> = Rc::new(terrain::height_map(424242));
 
-            let ground_entity = time!("terrain", TerrainEntity::from_scratch(&height_map));
+            let ground_entity = time!("terrain", TerrainEntity::from_scratch(height_map.as_ref()));
 
             let leaves_entity = time!("leaves texture", {
                 let tex = Texture::from_file("textures/leaves_masked1.png")
@@ -35,22 +36,32 @@ impl Scene {
                 // TODO: additional noise, not just offset.
                 TerrainEntity {
                     albedo: Rc::new(tex),
-                    model: glm::translate(&ground_entity.model, &glm::vec3(0.0, 0.0, 0.05)),
+                    model: glm::translate(&ground_entity.model, &glm::vec3(0.0, 0.0, 0.03)),
                     ..ground_entity.clone()
                 }
             });
 
             let base_plate = time!("base plate", BasePlate::from_scratch());
 
-            let shrubs = time!(
-                "shrubs",
-                ShrubEntities::from_scratch(500, 424247, &height_map, "models/shrub2.obj")
-            );
+            let shrubs = time!("shrubs", {
+                ShrubEntitiesBuilder::new()
+                    .with_approx_number_of_entities(500)
+                    .on_height_map(&height_map)
+                    .with_color(&[71. / 255., 49. / 255., 68. / 255., 1.0])
+                    .with_model_file("models/shrub2.obj")
+                    .with_z_scale_range(0.4, 1.0)
+                    .load(424247)
+            });
 
-            let bushes = time!(
-                "bushes",
-                ShrubEntities::from_scratch(1000, 777780, &height_map, "models/bush1.obj")
-            );
+            let bushes = time!("bushes", {
+                ShrubEntitiesBuilder::new()
+                    .with_approx_number_of_entities(2000)
+                    .on_height_map(&height_map)
+                    .with_texture("textures/bush_masked1.png")
+                    .with_model_file("models/bush1.obj")
+                    .with_z_scale_range(0.9, 1.0)
+                    .load(777781)
+            });
 
             let entities: Vec<Box<dyn Renderable>> = vec![
                 Box::new(ground_entity),

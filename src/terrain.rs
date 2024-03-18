@@ -27,7 +27,7 @@ pub struct BasePlate {
 impl TerrainEntity {
     /// This is not particularly smart to use more than once, as it
     /// does not share textures, shaders or buffers.
-    pub fn from_scratch(height_fn: &impl NoiseFn<f64, 2>) -> Self {
+    pub fn from_scratch(height_fn: &(impl NoiseFn<f64, 2> + ?Sized)) -> Self {
         let terrain_shader = unsafe {
             ShaderBuilder::new()
                 .with_shader_file("shaders/terrain.vert")
@@ -138,7 +138,7 @@ impl Renderable for BasePlate {
     }
 }
 
-pub fn height_map(seed: u32) -> impl NoiseFn<f64, 2> {
+pub fn height_map(seed: u32) -> impl NoiseFn<f64, 2> + 'static {
     let octave0 = ScaleBias::new(ScalePoint::new(noise::Value::new(seed + 1)).set_scale(2.))
         .set_scale(0.5)
         .set_bias(0.5);

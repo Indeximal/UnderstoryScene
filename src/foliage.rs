@@ -17,13 +17,30 @@ pub struct ShrubEntities {
     pub shader: Rc<Shader>,
 }
 
-impl ShrubEntities {
-    pub fn from_scratch(
-        num: usize,
-        seed: u32,
-        height_map: &impl NoiseFn<f64, 2>,
-        model: &str,
-    ) -> Self {
+pub struct ShrubEntitiesBuilder {
+    num: usize,
+    height_map: Option<Rc<dyn NoiseFn<f64, 2>>>,
+    model: Option<String>,
+    z_scale_range: (f32, f32),
+    texture: Option<Rc<Texture>>,
+}
+
+impl ShrubEntitiesBuilder {
+    pub fn new() -> Self {
+        ShrubEntitiesBuilder {
+            num: 0,
+            height_map: None,
+            model: None,
+            z_scale_range: (1.0, 1.0),
+            texture: None,
+        }
+    }
+
+    pub fn load(self, seed: u32) -> ShrubEntities {
+        let height_map = self.height_map.expect("Height map is required");
+        let model = self.model.expect("Model source file path is required");
+        let texture = self.texture.expect("Texture is required");
+
         let shader = unsafe {
             ShaderBuilder::new()
                 .with_shader_file("shaders/composable_instanced.vert")
@@ -32,14 +49,14 @@ impl ShrubEntities {
                 .expect("Simple shader had errors. See stdout.")
         };
 
-        let mesh = Mesh::load(model);
+        let mesh = Mesh::load(&model);
         let mesh_vao = ElementMeshVAO::new_from_mesh(&mesh);
 
-        let distr = probability_distribution(num as f64 / 36.0, seed);
+        let distr = probability_distribution(self.num as f64 / 36.0, seed);
         let positions =
             generate_points_on_distribution(distr, (-3.0, 3.0, -3.0, 3.0), seed as u64 + 1);
 
-        println!("Spawned {} shrubs", positions.len());
+        println!("Spawned {} entities", positions.len());
 
         // For some very weird ass reason do the translate & scale functions right multiply,
         // thus for scale than translate, I need to translate then scale...
@@ -69,17 +86,47 @@ impl ShrubEntities {
 
         let instanced_vao = InstancedMeshesVAO::from_existing_with_models(mesh_vao, &model_mats);
 
-        let color_texture = Texture::new::<f32, format::RGBA>(
-            1,
-            1,
-            (vec![71. / 255., 49. / 255., 68. / 255., 1.0]).as_slice(),
-        );
-
         ShrubEntities {
-            albedo: Rc::new(color_texture),
+            albedo: texture,
             vao: Rc::new(instanced_vao),
             shader: Rc::new(shader),
         }
+    }
+
+    pub fn with_approx_number_of_entities(mut self, num: usize) -> Self {
+        self.num = num;
+        self
+    }
+
+    pub fn on_height_map(mut self, height_map: &Rc<dyn NoiseFn<f64, 2>>) -> Self {
+        self.height_map = Some(height_map.clone());
+        self
+    }
+
+    pub fn with_model_file(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
+        self
+    }
+
+    pub fn with_z_scale_range(mut self, min_z_scale: f32, max_z_scale: f32) -> Self {
+        self.z_scale_range = (min_z_scale, max_z_scale);
+        self
+    }
+
+    pub fn with_color(mut self, texture_color: &[f32; 4]) -> Self {
+        self.texture = Some(Rc::new(Texture::new::<f32, format::RGBA>(
+            1,
+            1,
+            texture_color,
+        )));
+        self
+    }
+
+    pub fn with_texture(mut self, texture_path: impl AsRef<std::path::Path>) -> Self {
+        let tex = Texture::from_file(texture_path).expect("Loading shrub texture failed");
+        tex.enable_mipmap();
+        self.texture = Some(Rc::new(tex));
+        self
     }
 }
 
@@ -107,7 +154,7 @@ impl Renderable for ShrubEntities {
 /// this is too difficult to enforce. Just some scale approximately in the same
 /// order as the average.
 ///
-/// FIXME: more consitent shrub number
+/// FIXME: more consitent shrub number. Large scale randomness has too big influence.
 fn probability_distribution(density: f64, seed: u32) -> impl NoiseFn<f64, 2> {
     let noise = noise::Fbm::<noise::Perlin>::new(seed)
         .set_octaves(4) // Not very much detail required
