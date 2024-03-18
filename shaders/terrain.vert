@@ -8,28 +8,33 @@ out vec3 v_normal;
 
 uniform sampler2D displacement_map;
 uniform mat4 view_proj;
+// This will only transform the base shape, not the displacement
 uniform mat4 model_mat;
+// A matrix that will right multiply a world coordinate into a uv coordinate
+uniform mat3 world_to_uv;
 
-// Max feature size is less than 1%
-const float dx = 0.01;
+// Min feature size is less than 5cm
+const float dx = 0.05;
 
-float sample_displacement(vec2 uv) {
-    return texture(displacement_map, uv).r;
+float sample_displacement(vec2 wcoord) {
+    vec3 w_uv = world_to_uv * vec3(wcoord, 1.0);
+    return texture(displacement_map, w_uv.xy).r;
 }
 
 void main() {
-    float z = sample_displacement(uv);
-    float zu = sample_displacement(uv + vec2(dx, 0.0));
-    float zv = sample_displacement(uv + vec2(0.0, dx));
+    vec4 world_pos = model_mat * vec4(position, 1.0);
+
+    float z = sample_displacement(world_pos.xy);
+    float zu = sample_displacement(world_pos.xy + vec2(dx, 0.0));
+    float zv = sample_displacement(world_pos.xy + vec2(0.0, dx));
     float du = (zu - z) / dx;
     float dv = (zv - z) / dx;
 
-    // Assume UV is aligned to xy plane, but scaled down.
-    // Not actually accurate, I think should be 6.0, but artistic freedom.
-    v_normal = normalize(vec3(du / 3.0, dv / 3.0, 1.0));
+    // FIXME: This might be wrong
+    v_normal = normalize(vec3(du, dv, 1.0));
 
-    vec3 model_pos = position + z * vec3(0.0, 0.0, 1.0);
-    vec4 world_pos = model_mat * vec4(model_pos, 1.0);
-    gl_Position = view_proj * world_pos;
-    v_pos = world_pos.xyz;
+    // Doing this after the model matrix means that the direction is hardcoded
+    vec4 displaced_pos = world_pos + z * vec4(0.0, 0.0, 1.0, 0.0);
+    v_pos = displaced_pos.xyz;
+    gl_Position = view_proj * displaced_pos;
 }

@@ -3,6 +3,7 @@
 //! Can load and compile a shader from file.
 
 use gl::types::GLuint;
+use std::ffi::CStr;
 use std::{ffi::CString, path::Path};
 use std::{ptr, str};
 
@@ -81,8 +82,9 @@ impl ShaderBuilder {
             let shader_type =
                 ShaderType::from_ext(extension).expect("Failed to parse file extension.");
             let shader_src = std::fs::read_to_string(path)
-                .expect(&format!("Failed to read shader source. {}", shader_path));
+                .expect(&format!("Failed to read shader source `{}`", shader_path));
             self.with_shader(&shader_src, shader_type)
+                .expect(&format!("Failed to compile shader `{}`", shader_path))
         } else {
             panic!(
                 "Failed to read extension of file with path: {}",
@@ -91,23 +93,23 @@ impl ShaderBuilder {
         }
     }
 
-    pub unsafe fn with_shader(
+    unsafe fn with_shader(
         mut self,
         shader_src: &str,
         shader_type: ShaderType,
-    ) -> ShaderBuilder {
+    ) -> Result<ShaderBuilder, ()> {
         let shader = gl::CreateShader(shader_type.into());
         let c_str_shader = CString::new(shader_src.as_bytes()).unwrap();
         gl::ShaderSource(shader, 1, &c_str_shader.as_ptr(), ptr::null());
         gl::CompileShader(shader);
 
         if !self.check_shader_errors(shader) {
-            panic!("Shader failed to compile.");
+            return Err(());
         }
 
         self.shaders.push(shader);
 
-        self
+        Ok(self)
     }
 
     unsafe fn check_shader_errors(&self, shader_id: u32) -> bool {
@@ -122,9 +124,12 @@ impl ShaderBuilder {
                 ptr::null_mut(),
                 info_log.as_mut_ptr() as *mut gl::types::GLchar,
             );
+            println!("ERROR:: Shader Compilation Failed!");
             println!(
-                "ERROR::Shader Compilation Failed!\n{}",
-                String::from_utf8_lossy(&info_log)
+                "{}",
+                CStr::from_bytes_until_nul(&info_log)
+                    .expect("Shader error was too long")
+                    .to_string_lossy()
             );
             return false;
         }
