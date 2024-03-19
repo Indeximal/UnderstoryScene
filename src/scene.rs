@@ -25,15 +25,16 @@ macro_rules! time {
 impl Scene {
     pub fn load() -> Self {
         time!("scene", {
-            let height_map: Rc<dyn NoiseFn<f64, 2>> = Rc::new(terrain::height_map(424242));
+            let height_map: Rc<dyn NoiseFn<f64, 2>> =
+                time!("height map", Rc::new(terrain::height_map(424242)));
 
             let ground_entity = time!("terrain", TerrainEntity::from_scratch(height_map.as_ref()));
 
-            let leaves_entity = time!("leaves texture", {
+            // TODO: additional noise, not just offset.
+            let _leaves_entity = time!("leaves texture", {
                 let tex = Texture::from_file("textures/leaves_masked1.png")
                     .expect("Loading leaves texture failed");
                 tex.enable_mipmap();
-                // TODO: additional noise, not just offset.
                 TerrainEntity {
                     albedo: Rc::new(tex),
                     model: glm::translate(&ground_entity.model, &glm::vec3(0.0, 0.0, 0.03)),
@@ -65,7 +66,7 @@ impl Scene {
 
             let entities: Vec<Box<dyn Renderable>> = vec![
                 Box::new(ground_entity),
-                Box::new(leaves_entity),
+                // Box::new(leaves_entity),
                 Box::new(base_plate),
                 Box::new(shrubs),
                 Box::new(bushes),

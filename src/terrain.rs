@@ -1,4 +1,5 @@
 use nalgebra_glm as glm;
+use rand::{Rng, SeedableRng};
 use std::rc::Rc;
 
 use crate::mesh::{ElementMeshVAO, Mesh};
@@ -6,8 +7,7 @@ use crate::renderer::Renderable;
 use crate::shader::{Shader, ShaderBuilder};
 use crate::texture::Texture;
 
-use noise::{Add, ScaleBias};
-use noise::{NoiseFn, ScalePoint};
+use noise::{MultiFractal, NoiseFn, ScaleBias};
 
 /// The side length of the centered terrain square in meters.
 pub const TERRAIN_SIZE: f32 = 6.0;
@@ -92,7 +92,7 @@ impl BasePlate {
         // 100 by 100 meters size
         let model = glm::translate(
             &glm::scale(&glm::identity(), &glm::vec3(100.0, 100.0, 1.0)),
-            &glm::vec3(0., 0., -0.01),
+            &glm::vec3(0., 0., -0.5),
         );
 
         BasePlate {
@@ -165,19 +165,106 @@ impl Renderable for BasePlate {
     }
 }
 
+/// Nameable type for the height noise fn.
+///
+/// Sadly requires indirection, as to implement Seedable, you have to able to
+/// name the type as it seems.
+pub struct RockMap {
+    f: Box<dyn NoiseFn<f64, 2> + 'static>,
+    seed: u32,
+}
+
+impl RockMap {
+    pub fn new(seed: u32) -> RockMap {
+        let mut rng = rand::rngs::SmallRng::seed_from_u64(seed as u64);
+        // let worley_values = noise::Worley::new(seed).set_frequency(1.0);
+        // let worley_values = noise::Max::new(worley_values, noise::Constant::new(0.0));
+        // let worley_distance = noise::Worley::new(seed)
+        //     .set_frequency(1.0)
+        //     .set_return_type(noise::core::worley::ReturnType::Distance);
+        // let noise = noise::Multiply::new(worley_values, worley_distance);
+
+        // Large scale features, but not very much detail
+        let rockyness = noise::Fbm::<noise::Value>::new(rng.gen())
+            .set_octaves(4)
+            .set_frequency(0.5);
+        // Flatten out a lot of the values.
+        let rockyness_threshold = 0.5;
+        let rockyness = noise::ScaleBias::new(rockyness).set_bias(-rockyness_threshold);
+        let rockyness = noise::Max::new(rockyness, noise::Constant::new(0.0));
+        let rockyness = noise::ScaleBias::new(rockyness).set_scale(3.0);
+        let rockyness = noise::Min::new(rockyness, noise::Constant::new(1.0));
+
+        // Manhattan distances to create hard ridges
+        let ridges = noise::Worley::new(rng.gen())
+            .set_frequency(1.0)
+            .set_distance_function(&noise::core::worley::distance_functions::manhattan)
+            .set_return_type(noise::core::worley::ReturnType::Distance);
+        let ridges = Slice4D { func_4d: ridges };
+
+        let rocks = noise::Multiply::new(rockyness, ridges);
+        let rocks = ScaleBias::new(rocks).set_scale(0.2);
+
+        let noise = rocks;
+
+        RockMap {
+            f: Box::new(noise),
+            seed,
+        }
+    }
+}
+
+impl Default for RockMap {
+    fn default() -> Self {
+        RockMap::new(0)
+    }
+}
+
+impl NoiseFn<f64, 2> for RockMap {
+    fn get(&self, point: [f64; 2]) -> f64 {
+        self.f.get(point)
+    }
+}
+
+impl noise::Seedable for RockMap {
+    fn set_seed(self, seed: u32) -> Self {
+        RockMap::new(seed)
+    }
+
+    fn seed(&self) -> u32 {
+        self.seed
+    }
+}
+
 pub fn height_map(seed: u32) -> impl NoiseFn<f64, 2> + 'static {
-    let octave0 = ScaleBias::new(ScalePoint::new(noise::Value::new(seed + 1)).set_scale(2.))
-        .set_scale(0.5)
-        .set_bias(0.5);
-    let octave1 = ScaleBias::new(ScalePoint::new(noise::Value::new(seed + 2)).set_scale(4.))
-        .set_scale(0.25)
-        .set_bias(0.25);
-    let octave2 = ScaleBias::new(ScalePoint::new(noise::Value::new(seed + 3)).set_scale(8.))
-        .set_scale(0.125)
-        .set_bias(0.125);
+    let mut rng = rand::rngs::SmallRng::seed_from_u64(seed as u64);
 
-    let noise = Add::new(Add::new(octave0, octave1), octave2);
-    let noise = ScaleBias::new(noise).set_scale(0.2);
+    let rocks = noise::Fbm::<RockMap>::new(rng.gen())
+        .set_octaves(3)
+        .set_lacunarity(3.0)
+        .set_persistence(0.3)
+        .set_frequency(0.8);
 
-    noise
+    let rocks = ScaleBias::new(rocks).set_scale(1.1);
+
+    let height = noise::Fbm::<noise::Value>::new(rng.gen())
+        .set_octaves(6)
+        .set_frequency(0.2);
+    let height = ScaleBias::new(height).set_scale(0.3);
+
+    noise::Add::new(rocks, height)
+}
+
+struct Slice4D<F: NoiseFn<f64, 4>> {
+    func_4d: F,
+}
+
+impl<F> NoiseFn<f64, 2> for Slice4D<F>
+where
+    F: NoiseFn<f64, 4>,
+{
+    fn get(&self, point: [f64; 2]) -> f64 {
+        self.func_4d
+            .get([0.5 * point[0] + point[1], point[1], point[0], 2. * point[1]])
+    }
 }
