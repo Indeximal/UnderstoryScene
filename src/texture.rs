@@ -159,6 +159,12 @@ impl Texture {
     }
 }
 
+impl Drop for Texture {
+    fn drop(&mut self) {
+        unsafe { gl::DeleteTextures(1, &self.id) };
+    }
+}
+
 /// Weird magic I had fun creating, to leverage the Rust type system to create
 /// overloading of the `Texture::new` function.
 pub mod format {

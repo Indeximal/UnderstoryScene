@@ -8,12 +8,12 @@ use glutin::prelude::*;
 use glutin::surface::SwapInterval;
 use glutin_winit::{self, DisplayBuilder, GlWindow};
 use renderer::Renderer;
-use scene::Scene;
-use winit::event::{Event, KeyEvent, WindowEvent};
+use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoopBuilder;
 use winit::keyboard::{Key, NamedKey};
 use winit::window::WindowBuilder;
 
+mod assets;
 mod error;
 mod foliage;
 mod mesh;
@@ -66,7 +66,6 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     let mut state = None;
     let mut renderer = None;
-    let mut scene = None;
 
     event_loop.run(move |event, window_target| {
         match event {
@@ -106,9 +105,6 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                     eprintln!("Error setting vsync: {res:?}");
                 }
 
-                // Does all the I/O operations and loading to the GPU.
-                scene.get_or_insert_with(|| Scene::load());
-
                 assert!(state.replace((gl_context, gl_surface, window)).is_none());
             }
             Event::WindowEvent { event, .. } => match event {
@@ -141,15 +137,39 @@ pub fn main() -> Result<(), Box<dyn Error>> {
                 WindowEvent::RedrawRequested => {
                     if let Some((gl_context, gl_surface, window)) = &state {
                         let renderer = renderer.as_mut().unwrap();
-                        renderer.draw(
-                            &scene
-                                .as_ref()
-                                .expect("Scene is loaded when renderer is created"),
-                        );
+                        renderer.draw();
                         window.request_redraw();
 
                         gl_surface.swap_buffers(gl_context).unwrap();
                     }
+                }
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            logical_key: Key::Named(NamedKey::ArrowRight),
+                            state: ElementState::Released,
+                            ..
+                        },
+                    ..
+                } => 'block: {
+                    let Some(renderer) = renderer.as_mut() else {
+                        break 'block;
+                    };
+                    renderer.next_scene();
+                }
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            logical_key: Key::Named(NamedKey::ArrowLeft),
+                            state: ElementState::Released,
+                            ..
+                        },
+                    ..
+                } => 'block: {
+                    let Some(renderer) = renderer.as_mut() else {
+                        break 'block;
+                    };
+                    renderer.prev_scene();
                 }
                 _ => (),
             },

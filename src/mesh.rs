@@ -121,6 +121,7 @@ impl Mesh {
     }
 
     /// A simple 2 by 2 quad on the XY plane.
+    #[allow(dead_code)]
     pub fn quad() -> Self {
         Mesh {
             positions: vec![

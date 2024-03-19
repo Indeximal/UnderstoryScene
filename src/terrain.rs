@@ -2,9 +2,10 @@ use nalgebra_glm as glm;
 use rand::{Rng, SeedableRng};
 use std::rc::Rc;
 
-use crate::mesh::{ElementMeshVAO, Mesh};
+use crate::assets::Assets;
+use crate::mesh::ElementMeshVAO;
 use crate::renderer::Renderable;
-use crate::shader::{Shader, ShaderBuilder};
+use crate::shader::Shader;
 use crate::texture::Texture;
 
 use noise::{MultiFractal, NoiseFn, ScaleBias};
@@ -19,8 +20,8 @@ pub struct TerrainEntity {
     pub albedo_xy: Rc<Texture>,
     pub albedo_xz: Rc<Texture>,
     pub albedo_yz: Rc<Texture>,
-    pub model: glm::Mat4,
     pub shader: Rc<Shader>,
+    pub model: glm::Mat4,
     // A matrix that will right multiply a world coordinate into a uv coordinate
     pub world_to_uv: glm::Mat3,
 }
@@ -28,22 +29,11 @@ pub struct TerrainEntity {
 impl TerrainEntity {
     /// This is not particularly smart to use more than once, as it
     /// does not share textures, shaders or buffers.
-    pub fn from_scratch(height_fn: &(impl NoiseFn<f64, 2> + ?Sized)) -> Self {
-        let terrain_shader = unsafe {
-            ShaderBuilder::new()
-                .with_shader_file("shaders/terrain.vert")
-                .with_shader_file("shaders/terrain.frag")
-                .link()
-                .expect("Terrain shader had errors. See stdout.")
-        };
-
-        let quad = Mesh::quad_mesh(256);
-        let quad_vao = ElementMeshVAO::new_from_mesh(&quad);
+    pub fn from_assets(height_fn: &(impl NoiseFn<f64, 2> + ?Sized), assets: &Assets) -> Self {
         let model = glm::scale(
             &glm::identity(),
             &glm::vec3(TERRAIN_SIZE / 2.0, TERRAIN_SIZE / 2.0, 1.0),
         );
-
         let uv_to_world = glm::translate2d(
             &glm::scale2d(&glm::identity(), &glm::vec2(TERRAIN_SIZE, TERRAIN_SIZE)),
             &glm::vec2(-0.5, -0.5),
@@ -59,24 +49,15 @@ impl TerrainEntity {
             256,
         );
 
-        let grass_tex =
-            Texture::from_file("textures/moss1.jpeg").expect("Failed to load ground texture");
-        grass_tex.enable_mipmap();
-
-        let rock_tex =
-            Texture::from_file("textures/rock1.jpeg").expect("Failed to load rock texture");
-        rock_tex.enable_mipmap();
-        let rock_tex = Rc::new(rock_tex);
-
         TerrainEntity {
-            vao: Rc::new(quad_vao),
+            vao: assets.terrain_quad_mesh.clone(),
             displacement: Rc::new(height_tex),
-            albedo_xy: Rc::new(grass_tex),
-            albedo_xz: rock_tex.clone(),
-            albedo_yz: rock_tex,
+            albedo_xy: assets.moss_tex.clone(),
+            albedo_xz: assets.rock_tex.clone(),
+            albedo_yz: assets.rock_tex.clone(),
             model,
             world_to_uv: glm::inverse(&uv_to_world),
-            shader: Rc::new(terrain_shader),
+            shader: assets.terrain_shader.clone(),
         }
     }
 }
@@ -204,7 +185,7 @@ pub fn height_map(seed: u32) -> impl NoiseFn<f64, 2> + 'static {
     let height = noise::Fbm::<noise::Value>::new(rng.gen())
         .set_octaves(6)
         .set_frequency(0.2);
-    let height = ScaleBias::new(height).set_scale(0.3);
+    let height = ScaleBias::new(height).set_scale(0.3).set_bias(0.3);
 
     noise::Add::new(rocks, height)
 }

@@ -4,16 +4,23 @@
 
 use gl::types::GLuint;
 use std::ffi::CStr;
+use std::marker::PhantomData;
 use std::{ffi::CString, path::Path};
 use std::{ptr, str};
 
 pub struct Shader {
-    pub program_id: GLuint,
+    program_id: GLuint,
+
+    /// Mark the vao as !Send and !Sync, since OpenGL is not thread safe
+    _marker: PhantomData<*const ()>,
 }
 
 pub struct ShaderBuilder {
     program_id: GLuint,
     shaders: Vec<GLuint>,
+
+    /// Mark the vao as !Send and !Sync, since OpenGL is not thread safe
+    _marker: PhantomData<*const ()>,
 }
 
 #[allow(dead_code)]
@@ -26,18 +33,18 @@ pub enum ShaderType {
 }
 
 impl Shader {
-    // Make sure the shader is active before calling this
-    pub unsafe fn get_uniform_location(&self, name: &str) -> i32 {
+    /// Make sure the shader is active before calling this
+    pub fn get_uniform_location(&self, name: &str) -> i32 {
         let name_cstr = CString::new(name).expect("CString::new failed");
-        let id = gl::GetUniformLocation(self.program_id, name_cstr.as_ptr());
+        let id = unsafe { gl::GetUniformLocation(self.program_id, name_cstr.as_ptr()) };
         if id == -1 {
             panic!("get_uniform_location: Uniform `{}` not found.", name);
         }
         id
     }
 
-    pub unsafe fn activate(&self) {
-        gl::UseProgram(self.program_id);
+    pub fn activate(&self) {
+        unsafe { gl::UseProgram(self.program_id) };
     }
 }
 
@@ -67,16 +74,16 @@ impl ShaderType {
 }
 
 impl ShaderBuilder {
-    /// Safe if OpenGL has been properly set up.
-    /// Probably must not send to different thread or something.
-    pub unsafe fn new() -> ShaderBuilder {
+    pub fn new() -> ShaderBuilder {
         ShaderBuilder {
-            program_id: gl::CreateProgram(),
+            // Works if OpenGL has been properly set up.
+            program_id: unsafe { gl::CreateProgram() },
             shaders: vec![],
+            _marker: PhantomData,
         }
     }
 
-    pub unsafe fn with_shader_file(self, shader_path: &str) -> ShaderBuilder {
+    pub fn with_shader_file(self, shader_path: &str) -> ShaderBuilder {
         let path = Path::new(shader_path);
         if let Some(extension) = path.extension() {
             let shader_type =
@@ -93,19 +100,22 @@ impl ShaderBuilder {
         }
     }
 
-    unsafe fn with_shader(
+    fn with_shader(
         mut self,
         shader_src: &str,
         shader_type: ShaderType,
     ) -> Result<ShaderBuilder, ()> {
-        let shader = gl::CreateShader(shader_type.into());
-        let c_str_shader = CString::new(shader_src.as_bytes()).unwrap();
-        gl::ShaderSource(shader, 1, &c_str_shader.as_ptr(), ptr::null());
-        gl::CompileShader(shader);
+        let shader = unsafe {
+            let shader = gl::CreateShader(shader_type.into());
+            let c_str_shader = CString::new(shader_src.as_bytes()).unwrap();
+            gl::ShaderSource(shader, 1, &c_str_shader.as_ptr(), ptr::null());
+            gl::CompileShader(shader);
 
-        if !self.check_shader_errors(shader) {
-            return Err(());
-        }
+            if !self.check_shader_errors(shader) {
+                return Err(());
+            }
+            shader
+        };
 
         self.shaders.push(shader);
 
@@ -158,22 +168,25 @@ impl ShaderBuilder {
     }
 
     #[must_use = "The shader program is useless if not stored in a variable."]
-    pub unsafe fn link(self) -> Result<Shader, ()> {
-        for &shader in &self.shaders {
-            gl::AttachShader(self.program_id, shader);
-        }
-        gl::LinkProgram(self.program_id);
+    pub fn link(self) -> Result<Shader, ()> {
+        unsafe {
+            for &shader in &self.shaders {
+                gl::AttachShader(self.program_id, shader);
+            }
+            gl::LinkProgram(self.program_id);
 
-        if !self.check_linker_errors() {
-            return Err(());
-        }
+            if !self.check_linker_errors() {
+                return Err(());
+            }
 
-        for &shader in &self.shaders {
-            gl::DeleteShader(shader);
+            for &shader in &self.shaders {
+                gl::DeleteShader(shader);
+            }
         }
 
         Ok(Shader {
             program_id: self.program_id,
+            _marker: PhantomData,
         })
     }
 }

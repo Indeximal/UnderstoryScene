@@ -1,7 +1,7 @@
 use crate::mesh::{ElementMeshVAO, InstancedMeshesVAO, Mesh};
 use crate::renderer::Renderable;
-use crate::shader::{Shader, ShaderBuilder};
-use crate::texture::{format, Texture};
+use crate::shader::Shader;
+use crate::texture::Texture;
 
 use nalgebra_glm as glm;
 use noise::{MultiFractal, NoiseFn};
@@ -20,9 +20,10 @@ pub struct ShrubEntities {
 pub struct ShrubEntitiesBuilder {
     num: usize,
     height_map: Option<Rc<dyn NoiseFn<f64, 2>>>,
-    model: Option<String>,
+    model: Option<Rc<Mesh>>,
     z_scale_range: (f32, f32),
     texture: Option<Rc<Texture>>,
+    shader: Option<Rc<Shader>>,
 }
 
 impl ShrubEntitiesBuilder {
@@ -33,6 +34,7 @@ impl ShrubEntitiesBuilder {
             model: None,
             z_scale_range: (1.0, 1.0),
             texture: None,
+            shader: None,
         }
     }
 
@@ -40,17 +42,9 @@ impl ShrubEntitiesBuilder {
         let height_map = self.height_map.expect("Height map is required");
         let model = self.model.expect("Model source file path is required");
         let texture = self.texture.expect("Texture is required");
+        let shader = self.shader.expect("Shader is required");
 
-        let shader = unsafe {
-            ShaderBuilder::new()
-                .with_shader_file("shaders/composable_instanced.vert")
-                .with_shader_file("shaders/composable_shaded_texture.frag")
-                .link()
-                .expect("Simple shader had errors. See stdout.")
-        };
-
-        let mesh = Mesh::load(&model);
-        let mesh_vao = ElementMeshVAO::new_from_mesh(&mesh);
+        let mesh_vao = ElementMeshVAO::new_from_mesh(&model);
 
         let distr = probability_distribution(self.num as f64 / 36.0, seed);
         let positions =
@@ -89,7 +83,7 @@ impl ShrubEntitiesBuilder {
         ShrubEntities {
             albedo: texture,
             vao: Rc::new(instanced_vao),
-            shader: Rc::new(shader),
+            shader,
         }
     }
 
@@ -103,8 +97,8 @@ impl ShrubEntitiesBuilder {
         self
     }
 
-    pub fn with_model_file(mut self, model: impl Into<String>) -> Self {
-        self.model = Some(model.into());
+    pub fn with_model(mut self, model: Rc<Mesh>) -> Self {
+        self.model = Some(model);
         self
     }
 
@@ -113,19 +107,13 @@ impl ShrubEntitiesBuilder {
         self
     }
 
-    pub fn with_color(mut self, texture_color: &[f32; 4]) -> Self {
-        self.texture = Some(Rc::new(Texture::new::<f32, format::RGBA>(
-            1,
-            1,
-            texture_color,
-        )));
+    pub fn with_texture(mut self, texture: Rc<Texture>) -> Self {
+        self.texture = Some(texture);
         self
     }
 
-    pub fn with_texture(mut self, texture_path: impl AsRef<std::path::Path>) -> Self {
-        let tex = Texture::from_file(texture_path).expect("Loading shrub texture failed");
-        tex.enable_mipmap();
-        self.texture = Some(Rc::new(tex));
+    pub fn with_shader(mut self, shader: Rc<Shader>) -> Self {
+        self.shader = Some(shader);
         self
     }
 }

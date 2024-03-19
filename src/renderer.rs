@@ -3,12 +3,18 @@ use std::ffi::{CStr, CString};
 use glutin::display::GlDisplay;
 use nalgebra_glm as glm;
 
+use crate::assets::Assets;
+use crate::scene::Scene;
+
 pub trait Renderable {
     fn render(&self, view_proj_mat: &glm::Mat4);
 }
 
 pub struct Renderer {
     aspect_ratio: f32,
+    assets: Assets,
+    scene: Scene,
+    seed: u32,
 }
 
 impl Renderer {
@@ -52,11 +58,20 @@ impl Renderer {
             gl::DepthFunc(gl::LESS);
         }
 
-        Self { aspect_ratio }
+        // Does all the I/O operations and loading to the GPU.
+        let assets = Assets::load();
+        let scene = Scene::create(13, &assets);
+
+        Self {
+            aspect_ratio,
+            assets,
+            scene,
+            seed: 13,
+        }
     }
 
-    pub fn draw(&mut self, scene: &crate::scene::Scene) {
-        let (red, green, blue, alpha) = scene.background_color();
+    pub fn draw(&mut self) {
+        let (red, green, blue, alpha) = self.scene.background_color();
         unsafe {
             gl::ClearColor(red, green, blue, alpha);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
@@ -69,13 +84,13 @@ impl Renderer {
             50.0, // 50 m
         );
         let camera_transform = glm::look_at(
-            &scene.eye_position(),
-            &scene.look_at(),
+            &self.scene.eye_position(),
+            &self.scene.look_at(),
             &glm::Vec3::z_axis(),
         );
         let view_proj_mat = projection * camera_transform;
 
-        for entity in &scene.entities {
+        for entity in &self.scene.entities {
             entity.render(&view_proj_mat);
         }
     }
@@ -85,6 +100,16 @@ impl Renderer {
             gl::Viewport(0, 0, width, height);
         }
         self.aspect_ratio = width as f32 / height as f32;
+    }
+
+    pub fn next_scene(&mut self) {
+        self.seed = self.seed.wrapping_add(1);
+        self.scene = Scene::create(self.seed, &self.assets);
+    }
+
+    pub fn prev_scene(&mut self) {
+        self.seed = self.seed.wrapping_sub(1);
+        self.scene = Scene::create(self.seed, &self.assets);
     }
 }
 
