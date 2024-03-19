@@ -1,8 +1,9 @@
 use crate::foliage::ShrubEntitiesBuilder;
+use crate::mesh::{ElementMeshVAO, Mesh};
 use crate::renderer::Renderable;
-use crate::terrain::{self, BasePlate, TerrainEntity};
+use crate::shader::{Shader, ShaderBuilder};
+use crate::terrain::TerrainEntity;
 use crate::texture::Texture;
-
 use nalgebra_glm as glm;
 use noise::NoiseFn;
 use std::rc::Rc;
@@ -26,7 +27,7 @@ impl Scene {
     pub fn load() -> Self {
         time!("scene", {
             let height_map: Rc<dyn NoiseFn<f64, 2>> =
-                time!("height map", Rc::new(terrain::height_map(424242)));
+                time!("height map", Rc::new(crate::terrain::height_map(424242)));
 
             let ground_entity = time!("terrain", TerrainEntity::from_scratch(height_map.as_ref()));
 
@@ -36,7 +37,7 @@ impl Scene {
                     .expect("Loading leaves texture failed");
                 tex.enable_mipmap();
                 TerrainEntity {
-                    albedo: Rc::new(tex),
+                    albedo_xy: Rc::new(tex),
                     model: glm::translate(&ground_entity.model, &glm::vec3(0.0, 0.0, 0.03)),
                     ..ground_entity.clone()
                 }
@@ -95,5 +96,65 @@ impl Scene {
 
     pub fn look_at(&self) -> glm::Vec3 {
         glm::vec3(0.0, -1.0, 0.2) // Look at the floor near the center
+    }
+}
+
+pub struct BasePlate {
+    vao: Rc<ElementMeshVAO>,
+    model: glm::Mat4,
+    shader: Rc<Shader>,
+}
+
+impl BasePlate {
+    pub fn from_scratch() -> Self {
+        let shader = unsafe {
+            ShaderBuilder::new()
+                .with_shader_file("shaders/composable_perspective.vert")
+                .with_shader_file("shaders/composable_const_color.frag")
+                .link()
+                .expect("Simple shader had errors. See stdout.")
+        };
+
+        let quad = Mesh::quad();
+        let quad_vao = ElementMeshVAO::new_from_mesh(&quad);
+        // 100 by 100 meters size
+        let model = glm::translate(
+            &glm::scale(&glm::identity(), &glm::vec3(100.0, 100.0, 1.0)),
+            &glm::vec3(0., 0., -0.5),
+        );
+
+        BasePlate {
+            vao: Rc::new(quad_vao),
+            model,
+            shader: Rc::new(shader),
+        }
+    }
+}
+
+impl Renderable for BasePlate {
+    fn render(&self, view_proj_mat: &glm::Mat4) {
+        unsafe {
+            self.shader.activate();
+            gl::UniformMatrix4fv(
+                self.shader.get_uniform_location("view_proj"),
+                1,
+                gl::FALSE,
+                view_proj_mat.as_ptr(),
+            );
+            gl::UniformMatrix4fv(
+                self.shader.get_uniform_location("model_mat"),
+                1,
+                gl::FALSE,
+                self.model.as_ptr(),
+            );
+
+            gl::Uniform3fv(
+                self.shader.get_uniform_location("color"),
+                1,
+                (&[79.0f32 / 255., 63. / 255., 45. / 255.]) as *const _,
+            );
+        }
+
+        self.vao.render();
     }
 }

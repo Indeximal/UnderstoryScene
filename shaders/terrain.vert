@@ -27,8 +27,8 @@ void main() {
     float z = sample_displacement(world_pos.xy);
     float zu = sample_displacement(world_pos.xy + vec2(dx, 0.0));
     float zv = sample_displacement(world_pos.xy + vec2(0.0, dx));
-    float du = (zu - z) / dx;
-    float dv = (zv - z) / dx;
+    float du = (z - zu) / dx;
+    float dv = (z - zv) / dx;
 
     // FIXME: This might be wrong
     v_normal = normalize(vec3(du, dv, 1.0));

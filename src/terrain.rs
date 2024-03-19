@@ -16,7 +16,9 @@ pub const TERRAIN_SIZE: f32 = 6.0;
 pub struct TerrainEntity {
     pub vao: Rc<ElementMeshVAO>,
     pub displacement: Rc<Texture>,
-    pub albedo: Rc<Texture>,
+    pub albedo_xy: Rc<Texture>,
+    pub albedo_xz: Rc<Texture>,
+    pub albedo_yz: Rc<Texture>,
     pub model: glm::Mat4,
     pub shader: Rc<Shader>,
     // A matrix that will right multiply a world coordinate into a uv coordinate
@@ -37,6 +39,15 @@ impl TerrainEntity {
 
         let quad = Mesh::quad_mesh(256);
         let quad_vao = ElementMeshVAO::new_from_mesh(&quad);
+        let model = glm::scale(
+            &glm::identity(),
+            &glm::vec3(TERRAIN_SIZE / 2.0, TERRAIN_SIZE / 2.0, 1.0),
+        );
+
+        let uv_to_world = glm::translate2d(
+            &glm::scale2d(&glm::identity(), &glm::vec2(TERRAIN_SIZE, TERRAIN_SIZE)),
+            &glm::vec2(-0.5, -0.5),
+        );
         let height_tex = Texture::from_noise(
             height_fn,
             (
@@ -45,60 +56,27 @@ impl TerrainEntity {
                 -TERRAIN_SIZE / 2.,
                 TERRAIN_SIZE / 2.,
             ),
-            128,
-        );
-        let model = glm::scale(
-            &glm::identity(),
-            &glm::vec3(TERRAIN_SIZE / 2.0, TERRAIN_SIZE / 2.0, 1.0),
-        );
-        let uv_to_world = glm::translate2d(
-            &glm::scale2d(&glm::identity(), &glm::vec2(TERRAIN_SIZE, TERRAIN_SIZE)),
-            &glm::vec2(-0.5, -0.5),
+            256,
         );
 
-        let albedo =
-            Texture::from_file("textures/grass1.jpeg").expect("Failed to load ground texture");
-        albedo.enable_mipmap();
+        let grass_tex =
+            Texture::from_file("textures/moss1.jpeg").expect("Failed to load ground texture");
+        grass_tex.enable_mipmap();
+
+        let rock_tex =
+            Texture::from_file("textures/rock1.jpeg").expect("Failed to load rock texture");
+        rock_tex.enable_mipmap();
+        let rock_tex = Rc::new(rock_tex);
 
         TerrainEntity {
             vao: Rc::new(quad_vao),
             displacement: Rc::new(height_tex),
-            albedo: Rc::new(albedo),
+            albedo_xy: Rc::new(grass_tex),
+            albedo_xz: rock_tex.clone(),
+            albedo_yz: rock_tex,
             model,
             world_to_uv: glm::inverse(&uv_to_world),
             shader: Rc::new(terrain_shader),
-        }
-    }
-}
-
-pub struct BasePlate {
-    vao: Rc<ElementMeshVAO>,
-    model: glm::Mat4,
-    shader: Rc<Shader>,
-}
-
-impl BasePlate {
-    pub fn from_scratch() -> Self {
-        let shader = unsafe {
-            ShaderBuilder::new()
-                .with_shader_file("shaders/composable_perspective.vert")
-                .with_shader_file("shaders/composable_const_color.frag")
-                .link()
-                .expect("Simple shader had errors. See stdout.")
-        };
-
-        let quad = Mesh::quad();
-        let quad_vao = ElementMeshVAO::new_from_mesh(&quad);
-        // 100 by 100 meters size
-        let model = glm::translate(
-            &glm::scale(&glm::identity(), &glm::vec3(100.0, 100.0, 1.0)),
-            &glm::vec3(0., 0., -0.5),
-        );
-
-        BasePlate {
-            vao: Rc::new(quad_vao),
-            model,
-            shader: Rc::new(shader),
         }
     }
 }
@@ -129,36 +107,12 @@ impl Renderable for TerrainEntity {
             self.displacement.activate(0);
             gl::Uniform1i(self.shader.get_uniform_location("displacement_map"), 0);
 
-            self.albedo.activate(1);
-            gl::Uniform1i(self.shader.get_uniform_location("terrain_albedo"), 1);
-        }
-
-        self.vao.render();
-    }
-}
-
-impl Renderable for BasePlate {
-    fn render(&self, view_proj_mat: &glm::Mat4) {
-        unsafe {
-            self.shader.activate();
-            gl::UniformMatrix4fv(
-                self.shader.get_uniform_location("view_proj"),
-                1,
-                gl::FALSE,
-                view_proj_mat.as_ptr(),
-            );
-            gl::UniformMatrix4fv(
-                self.shader.get_uniform_location("model_mat"),
-                1,
-                gl::FALSE,
-                self.model.as_ptr(),
-            );
-
-            gl::Uniform3fv(
-                self.shader.get_uniform_location("color"),
-                1,
-                (&[79.0f32 / 255., 63. / 255., 45. / 255.]) as *const _,
-            );
+            self.albedo_xy.activate(1);
+            gl::Uniform1i(self.shader.get_uniform_location("terrain_albedo_xy"), 1);
+            self.albedo_xz.activate(2);
+            gl::Uniform1i(self.shader.get_uniform_location("terrain_albedo_xz"), 2);
+            self.albedo_yz.activate(3);
+            gl::Uniform1i(self.shader.get_uniform_location("terrain_albedo_yz"), 3);
         }
 
         self.vao.render();
