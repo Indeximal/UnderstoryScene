@@ -2,7 +2,7 @@ use nalgebra_glm as glm;
 use rand::{Rng, SeedableRng};
 use std::rc::Rc;
 
-use crate::assets::Assets;
+use crate::assets::{Assets, ImageNoiseFnWrapper};
 use crate::mesh::ElementMeshVAO;
 use crate::renderer::Renderable;
 use crate::scene::SCENE_SIZE;
@@ -156,7 +156,7 @@ impl noise::Seedable for RockMap {
     }
 }
 
-pub fn height_map(seed: u32) -> impl NoiseFn<f64, 2> + 'static {
+pub fn height_map(base: Rc<image::RgbaImage>, seed: u32) -> impl NoiseFn<f64, 2> + 'static {
     let mut rng = rand::rngs::SmallRng::seed_from_u64(seed as u64);
 
     let rocks = noise::Fbm::<RockMap>::new(rng.gen())
@@ -165,14 +165,20 @@ pub fn height_map(seed: u32) -> impl NoiseFn<f64, 2> + 'static {
         .set_persistence(0.3)
         .set_frequency(0.8);
 
-    let rocks = ScaleBias::new(rocks).set_scale(1.1);
+    let rocks = ScaleBias::new(rocks).set_scale(0.8);
 
     let height = noise::Fbm::<noise::Value>::new(rng.gen())
         .set_octaves(6)
         .set_frequency(0.2);
     let height = ScaleBias::new(height).set_scale(0.3).set_bias(0.3);
 
-    noise::Add::new(rocks, height)
+    let base_height = noise::Power::new(
+        ImageNoiseFnWrapper::new_red(base),
+        noise::Constant::new(2.0),
+    );
+    let base_height = noise::ScaleBias::new(base_height).set_scale(2.0);
+
+    noise::Add::new(base_height, noise::Add::new(rocks, height))
 }
 
 struct Slice4D<F: NoiseFn<f64, 4>> {

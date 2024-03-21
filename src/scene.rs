@@ -1,4 +1,4 @@
-use crate::assets::Assets;
+use crate::assets::{Assets, ImageNoiseFnWrapper};
 use crate::foliage::ShrubEntitiesBuilder;
 use crate::renderer::Renderable;
 use crate::terrain::TerrainEntity;
@@ -33,8 +33,13 @@ impl Scene {
         time!(format!("SCENE {}", seed), {
             let mut rng = rand::rngs::SmallRng::seed_from_u64(seed as u64);
 
-            let height_map: Rc<dyn NoiseFn<f64, 2>> =
-                time!("height map", Rc::new(crate::terrain::height_map(rng.gen())));
+            let height_map: Rc<dyn NoiseFn<f64, 2>> = time!(
+                "height map",
+                Rc::new(crate::terrain::height_map(
+                    assets.base_map.clone(),
+                    rng.gen()
+                ))
+            );
 
             let ground_entity = time!(
                 "terrain",
@@ -46,6 +51,7 @@ impl Scene {
                 ShrubEntitiesBuilder::new()
                     .with_density(50.)
                     .on_height_map(&height_map)
+                    .with_bushiness(ImageNoiseFnWrapper::new_green(assets.base_map.clone()))
                     .with_texture(assets.shrub_tex.clone())
                     .with_model(assets.shrub_model.clone())
                     .with_shader(assets.foliage_shader.clone())

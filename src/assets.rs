@@ -1,4 +1,7 @@
+use noise::NoiseFn;
+
 use crate::mesh::{ElementMeshVAO, Mesh};
+use crate::scene::SCENE_SIZE;
 use crate::shader::{Shader, ShaderBuilder};
 use crate::texture::Texture;
 
@@ -23,6 +26,12 @@ pub struct Assets {
     pub shrub_tex: Rc<Texture>,
     pub bark_tex: Rc<Texture>,
 
+    /// A map of the terrain, created by an artist, which controls:
+    ///
+    /// - The base height in the R channel
+    /// - The base bushyness in the G channel
+    pub base_map: Rc<image::RgbaImage>,
+
     // These could technically also share the VAO, but since the instance data
     // is dynamic, this would be weird.
     pub shrub_model: Rc<Mesh>,
@@ -39,6 +48,25 @@ impl Assets {
         time!(
             "ASSETS",
             Assets {
+                // Compile shaders
+                terrain_shader: time!("terrain shader", {
+                    let shader = ShaderBuilder::new()
+                        .with_shader_file("shaders/terrain.vert")
+                        .with_shader_file("shaders/terrain.frag")
+                        .link()
+                        .expect("Terrain shader had errors. See stdout.");
+                    Rc::new(shader)
+                }),
+                foliage_shader: time!("foliage shader", {
+                    let shader = ShaderBuilder::new()
+                        .with_shader_file("shaders/composable_instanced.vert")
+                        .with_shader_file("shaders/composable_shaded_texture.frag")
+                        .link()
+                        .expect("Foliage shader had errors. See stdout.");
+                    Rc::new(shader)
+                }),
+
+                // Load Textures
                 moss_tex: time!("moss texture", {
                     let tex = Texture::from_file("textures/moss1.jpeg")
                         .expect("Loading moss texture failed");
@@ -73,6 +101,15 @@ impl Assets {
                     Rc::new(tex)
                 }),
 
+                // Load base map
+                base_map: time!("base map", {
+                    let img = image::open("textures/map.png")
+                        .expect("Loading base map failed")
+                        .into_rgba8();
+                    Rc::new(img)
+                }),
+
+                // Load obj models
                 shrub_model: time!("shrub model", {
                     let model = Mesh::load("models/shrub2.obj");
                     Rc::new(model)
@@ -90,24 +127,38 @@ impl Assets {
                     let quad_vao = ElementMeshVAO::new_from_mesh(&quad);
                     Rc::new(quad_vao)
                 }),
-
-                terrain_shader: time!("terrain shader", {
-                    let shader = ShaderBuilder::new()
-                        .with_shader_file("shaders/terrain.vert")
-                        .with_shader_file("shaders/terrain.frag")
-                        .link()
-                        .expect("Terrain shader had errors. See stdout.");
-                    Rc::new(shader)
-                }),
-                foliage_shader: time!("foliage shader", {
-                    let shader = ShaderBuilder::new()
-                        .with_shader_file("shaders/composable_instanced.vert")
-                        .with_shader_file("shaders/composable_shaded_texture.frag")
-                        .link()
-                        .expect("Foliage shader had errors. See stdout.");
-                    Rc::new(shader)
-                }),
             }
         )
+    }
+}
+
+pub struct ImageNoiseFnWrapper<const CHANNEL: usize> {
+    image: Rc<image::RgbaImage>,
+}
+
+impl ImageNoiseFnWrapper<0> {
+    pub fn new_red(image: Rc<image::RgbaImage>) -> Self {
+        ImageNoiseFnWrapper { image }
+    }
+}
+
+impl ImageNoiseFnWrapper<1> {
+    pub fn new_green(image: Rc<image::RgbaImage>) -> Self {
+        ImageNoiseFnWrapper { image }
+    }
+}
+
+impl<const CHANNEL: usize> NoiseFn<f64, 2> for ImageNoiseFnWrapper<CHANNEL> {
+    fn get(&self, point: [f64; 2]) -> f64 {
+        let x = (point[0] / SCENE_SIZE as f64 * self.image.width() as f64) as u32;
+        let y = (point[1] / SCENE_SIZE as f64 * self.image.height() as f64) as u32;
+        // clamp x & y
+        let x = x.clamp(0, self.image.width() - 1);
+        let y = y.clamp(0, self.image.height() - 1);
+        // Intentionally switching x & y to line up with my coordinate system
+        let pixel = self.image.get_pixel(y, x);
+        // Red channel is height
+        let value: f64 = pixel[CHANNEL].into();
+        value / 255.0
     }
 }

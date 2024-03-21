@@ -1,3 +1,4 @@
+use crate::assets::ImageNoiseFnWrapper;
 use crate::mesh::{ElementMeshVAO, InstancedMeshesVAO, Mesh};
 use crate::renderer::Renderable;
 use crate::scene::SCENE_SIZE;
@@ -28,6 +29,7 @@ pub struct ShrubEntitiesBuilder {
     scale_range: (f32, f32),
     texture: Option<Rc<Texture>>,
     shader: Option<Rc<Shader>>,
+    bushiness: Option<ImageNoiseFnWrapper<1>>,
 }
 
 impl ShrubEntitiesBuilder {
@@ -41,6 +43,7 @@ impl ShrubEntitiesBuilder {
             scale_range: (1.0, 1.0),
             texture: None,
             shader: None,
+            bushiness: None,
         }
     }
 
@@ -55,8 +58,17 @@ impl ShrubEntitiesBuilder {
         let mesh_vao = ElementMeshVAO::new_from_mesh(&model);
 
         let distr = probability_distribution(self.density, rng.gen());
-        let mut positions =
-            generate_points_on_distribution(distr, (0., SCENE_SIZE, 0., SCENE_SIZE), rng.gen());
+        let mut positions = if let Some(bushiness) = self.bushiness {
+            let bushiness = noise::Power::new(bushiness, noise::Constant::new(2.0));
+            let bushiness = noise::ScaleBias::new(bushiness)
+                .set_scale(2.0)
+                .set_bias(0.1);
+
+            let distr = noise::Multiply::new(distr, bushiness);
+            generate_points_on_distribution(distr, (0., SCENE_SIZE, 0., SCENE_SIZE), rng.gen())
+        } else {
+            generate_points_on_distribution(distr, (0., SCENE_SIZE, 0., SCENE_SIZE), rng.gen())
+        };
 
         if positions.len() > self.num_limit {
             positions.shuffle(&mut rng);
@@ -120,6 +132,11 @@ impl ShrubEntitiesBuilder {
 
     pub fn on_height_map(mut self, height_map: &Rc<dyn NoiseFn<f64, 2>>) -> Self {
         self.height_map = Some(height_map.clone());
+        self
+    }
+
+    pub fn with_bushiness(mut self, bushiness: ImageNoiseFnWrapper<1>) -> Self {
+        self.bushiness = Some(bushiness);
         self
     }
 
