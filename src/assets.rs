@@ -23,6 +23,7 @@ pub struct Assets {
     pub moss_tex: Rc<Texture>,
     pub rock_tex: Rc<Texture>,
     pub bush_tex: Rc<Texture>,
+    pub bush_side_tex: Rc<Texture>,
     pub shrub_tex: Rc<Texture>,
     pub bark_tex: Rc<Texture>,
 
@@ -35,7 +36,8 @@ pub struct Assets {
     // These could technically also share the VAO, but since the instance data
     // is dynamic, this would be weird.
     pub shrub_model: Rc<Mesh>,
-    pub bush_model: Rc<Mesh>,
+    pub bush1_model: Rc<Mesh>,
+    pub bush2_model: Rc<Mesh>,
     pub tree_model: Rc<Mesh>,
     pub terrain_quad_mesh: Rc<ElementMeshVAO>,
 
@@ -85,6 +87,12 @@ impl Assets {
                     tex.enable_mipmap();
                     Rc::new(tex)
                 }),
+                bush_side_tex: time!("bush side texture", {
+                    let tex = Texture::from_file("textures/bush_masked2.png")
+                        .expect("Loading bush side texture failed");
+                    tex.enable_mipmap();
+                    Rc::new(tex)
+                }),
                 shrub_tex: time!("shrub texture", {
                     let tex = Texture::new::<f32, crate::texture::format::RGBA>(
                         1,
@@ -114,8 +122,12 @@ impl Assets {
                     let model = Mesh::load("models/shrub2.obj");
                     Rc::new(model)
                 }),
-                bush_model: time!("bush model", {
+                bush1_model: time!("bush model", {
                     let model = Mesh::load("models/bush1.obj");
+                    Rc::new(model)
+                }),
+                bush2_model: time!("bush model", {
+                    let model = Mesh::load("models/bush2.obj");
                     Rc::new(model)
                 }),
                 tree_model: time!("tree model", {

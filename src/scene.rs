@@ -59,14 +59,26 @@ impl Scene {
                     .load(rng.gen())
             });
 
-            let bushes = time!("bushes", {
+            let bushes1 = time!("bushes", {
                 ShrubEntitiesBuilder::new()
                     .with_density(30.)
                     .on_height_map(&height_map)
                     .with_texture(assets.bush_tex.clone())
-                    .with_model(assets.bush_model.clone())
+                    .with_model(assets.bush1_model.clone())
                     .with_shader(assets.foliage_shader.clone())
                     .with_z_scale_range(0.9, 1.0)
+                    .load(rng.gen())
+            });
+
+            let bushes2 = time!("bushes", {
+                ShrubEntitiesBuilder::new()
+                    .with_density(5.)
+                    .on_height_map(&height_map)
+                    .with_texture(assets.bush_side_tex.clone())
+                    .with_model(assets.bush2_model.clone())
+                    .with_shader(assets.foliage_shader.clone())
+                    .with_z_scale_range(0.7, 1.0)
+                    .with_scale_range(1.5, 3.0)
                     .load(rng.gen())
             });
 
@@ -85,7 +97,8 @@ impl Scene {
             let entities: Vec<Box<dyn Renderable>> = vec![
                 Box::new(ground_entity),
                 Box::new(shrubs),
-                Box::new(bushes),
+                Box::new(bushes1),
+                Box::new(bushes2),
                 Box::new(trees),
             ];
 
