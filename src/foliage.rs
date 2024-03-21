@@ -6,6 +6,7 @@ use crate::texture::Texture;
 use nalgebra_glm as glm;
 use noise::{MultiFractal, NoiseFn};
 use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
 use rand_distr::Uniform;
 use std::rc::Rc;
@@ -18,10 +19,12 @@ pub struct ShrubEntities {
 }
 
 pub struct ShrubEntitiesBuilder {
-    num: usize,
+    density: f64,
+    num_limit: usize,
     height_map: Option<Rc<dyn NoiseFn<f64, 2>>>,
     model: Option<Rc<Mesh>>,
     z_scale_range: (f32, f32),
+    scale_range: (f32, f32),
     texture: Option<Rc<Texture>>,
     shader: Option<Rc<Shader>>,
 }
@@ -29,16 +32,20 @@ pub struct ShrubEntitiesBuilder {
 impl ShrubEntitiesBuilder {
     pub fn new() -> Self {
         ShrubEntitiesBuilder {
-            num: 0,
+            density: 0.0,
+            num_limit: usize::MAX,
             height_map: None,
             model: None,
             z_scale_range: (1.0, 1.0),
+            scale_range: (1.0, 1.0),
             texture: None,
             shader: None,
         }
     }
 
     pub fn load(self, seed: u32) -> ShrubEntities {
+        let mut rng = StdRng::seed_from_u64(seed as u64);
+
         let height_map = self.height_map.expect("Height map is required");
         let model = self.model.expect("Model source file path is required");
         let texture = self.texture.expect("Texture is required");
@@ -46,16 +53,22 @@ impl ShrubEntitiesBuilder {
 
         let mesh_vao = ElementMeshVAO::new_from_mesh(&model);
 
-        let distr = probability_distribution(self.num as f64 / 36.0, seed);
-        let positions =
-            generate_points_on_distribution(distr, (-3.0, 3.0, -3.0, 3.0), seed as u64 + 1);
+        let distr = probability_distribution(self.density, rng.gen());
+        let mut positions =
+            generate_points_on_distribution(distr, (-3.0, 3.0, -3.0, 3.0), rng.gen());
+
+        if positions.len() > self.num_limit {
+            positions.shuffle(&mut rng);
+            positions.resize_with(self.num_limit, || {
+                unreachable!("Len is less than the limit")
+            });
+        }
+        let positions = positions;
 
         println!("Spawned {} entities", positions.len());
 
         // For some very weird ass reason do the translate & scale functions right multiply,
         // thus for scale than translate, I need to translate then scale...
-
-        let mut rng = StdRng::seed_from_u64(seed as u64 + 2);
 
         let model_mats: Vec<glm::Mat4> = positions
             .into_iter()
@@ -63,7 +76,14 @@ impl ShrubEntitiesBuilder {
                 // TODO: rotation based on height gradient
                 let rotation_angle: f32 = rng.sample(Uniform::new(0.0, 6.28));
                 // TODO: scale in a more natural distribution
-                let z_scale: f32 = rng.sample(Uniform::new(0.4, 1.0));
+                let z_scale: f32 = rng.sample(Uniform::new_inclusive(
+                    self.z_scale_range.0,
+                    self.z_scale_range.1,
+                ));
+                let scale: f32 = rng.sample(Uniform::new_inclusive(
+                    self.scale_range.0,
+                    self.scale_range.1,
+                ));
 
                 glm::scale(
                     &glm::rotate_z(
@@ -73,7 +93,7 @@ impl ShrubEntitiesBuilder {
                         ),
                         rotation_angle,
                     ),
-                    &glm::vec3(1.0, 1.0, z_scale),
+                    &glm::vec3(scale, scale, scale * z_scale),
                 )
             })
             .collect();
@@ -87,8 +107,13 @@ impl ShrubEntitiesBuilder {
         }
     }
 
-    pub fn with_approx_number_of_entities(mut self, num: usize) -> Self {
-        self.num = num;
+    pub fn with_density(mut self, density: f64) -> Self {
+        self.density = density;
+        self
+    }
+
+    pub fn with_entitiy_limit(mut self, num_limit: usize) -> Self {
+        self.num_limit = num_limit;
         self
     }
 
@@ -102,8 +127,15 @@ impl ShrubEntitiesBuilder {
         self
     }
 
+    /// Streches the models in z direction (height)
     pub fn with_z_scale_range(mut self, min_z_scale: f32, max_z_scale: f32) -> Self {
         self.z_scale_range = (min_z_scale, max_z_scale);
+        self
+    }
+
+    /// Streches the models in all directions
+    pub fn with_scale_range(mut self, min_scale: f32, max_scale: f32) -> Self {
+        self.scale_range = (min_scale, max_scale);
         self
     }
 

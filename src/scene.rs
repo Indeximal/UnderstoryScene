@@ -39,18 +39,18 @@ impl Scene {
             // Accepting that the VAO is loaded anew
             let shrubs = time!("shrubs", {
                 ShrubEntitiesBuilder::new()
-                    .with_approx_number_of_entities(500)
+                    .with_density(50.)
                     .on_height_map(&height_map)
                     .with_texture(assets.shrub_tex.clone())
                     .with_model(assets.shrub_model.clone())
                     .with_shader(assets.foliage_shader.clone())
-                    .with_z_scale_range(0.4, 1.0)
+                    .with_z_scale_range(0.4, 1.2)
                     .load(rng.gen())
             });
 
             let bushes = time!("bushes", {
                 ShrubEntitiesBuilder::new()
-                    .with_approx_number_of_entities(2000)
+                    .with_density(30.)
                     .on_height_map(&height_map)
                     .with_texture(assets.bush_tex.clone())
                     .with_model(assets.bush_model.clone())
@@ -59,8 +59,24 @@ impl Scene {
                     .load(rng.gen())
             });
 
-            let entities: Vec<Box<dyn Renderable>> =
-                vec![Box::new(ground_entity), Box::new(shrubs), Box::new(bushes)];
+            let trees = time!("trees", {
+                ShrubEntitiesBuilder::new()
+                    .with_density(1.)
+                    .with_entitiy_limit(7)
+                    .on_height_map(&height_map)
+                    .with_texture(assets.bark_tex.clone())
+                    .with_model(assets.tree_model.clone())
+                    .with_shader(assets.foliage_shader.clone())
+                    .with_scale_range(0.5, 1.0)
+                    .load(rng.gen())
+            });
+
+            let entities: Vec<Box<dyn Renderable>> = vec![
+                Box::new(ground_entity),
+                Box::new(shrubs),
+                Box::new(bushes),
+                Box::new(trees),
+            ];
 
             Scene {
                 entities,
