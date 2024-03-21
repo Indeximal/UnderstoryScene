@@ -18,6 +18,11 @@ macro_rules! time {
     }};
 }
 
+/// The side length of the scene square in meters.
+///
+/// One corner of the scene is at (0, 0), the opposite at (+SCENE_SIZE, +SCENE_SIZE).
+pub const SCENE_SIZE: f32 = 15.0;
+
 pub struct Scene {
     pub entities: Vec<Box<dyn Renderable>>,
     pub start_time: Instant,
@@ -62,7 +67,7 @@ impl Scene {
             let trees = time!("trees", {
                 ShrubEntitiesBuilder::new()
                     .with_density(1.)
-                    .with_entitiy_limit(7)
+                    .with_entitiy_limit(21)
                     .on_height_map(&height_map)
                     .with_texture(assets.bark_tex.clone())
                     .with_model(assets.tree_model.clone())
@@ -92,14 +97,18 @@ impl Scene {
     pub fn eye_position(&self) -> glm::Vec3 {
         let t = self.start_time.elapsed().as_secs_f32();
         // Different phase and frequency for random looking movement
-        glm::vec3(
+        let bob = glm::vec3(
             0.1 * (t * 0.32 + 1.).sin(),
             0.03 * (t * 0.33 + 2.).sin(),
             0.05 * (t * 0.34 + 3.).sin(),
-        ) + glm::vec3(0.0, -4.0, 1.7) // Stand behind the scene with eye height 170cm
+        );
+        // Stand in a corner of the scene the scene somewhat above the ground
+        let base = glm::vec3(1.0, 1.0, 2.0);
+        base + bob
     }
 
     pub fn look_at(&self) -> glm::Vec3 {
-        glm::vec3(0.0, -1.0, 0.2) // Look at the floor near the center
+        // Look at the floor in the direction of the opposite corner
+        glm::vec3(3.5, 3.5, 0.3)
     }
 }

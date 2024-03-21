@@ -1,5 +1,6 @@
 use crate::mesh::{ElementMeshVAO, InstancedMeshesVAO, Mesh};
 use crate::renderer::Renderable;
+use crate::scene::SCENE_SIZE;
 use crate::shader::Shader;
 use crate::texture::Texture;
 
@@ -55,7 +56,7 @@ impl ShrubEntitiesBuilder {
 
         let distr = probability_distribution(self.density, rng.gen());
         let mut positions =
-            generate_points_on_distribution(distr, (-3.0, 3.0, -3.0, 3.0), rng.gen());
+            generate_points_on_distribution(distr, (0., SCENE_SIZE, 0., SCENE_SIZE), rng.gen());
 
         if positions.len() > self.num_limit {
             positions.shuffle(&mut rng);

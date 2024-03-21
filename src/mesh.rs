@@ -135,7 +135,7 @@ impl Mesh {
 
     /// Generates a mesh of `divisions` by `divisions` quads on the XY plane.
     ///
-    /// Is 2x2 large and spans 0 to 1 in UV space.
+    /// Is 1x1 large, from (0,0,0) to (1,1,0) and spans 0 to 1 in UV space.
     pub fn quad_mesh(num_quads: u32) -> Self {
         let mut positions = vec![];
         let mut normals = vec![];
@@ -146,11 +146,9 @@ impl Mesh {
             for x in 0..=num_quads {
                 let u = x as f32 / num_quads as f32;
                 let v = y as f32 / num_quads as f32;
-                let px = u * 2.0 - 1.0;
-                let py = v * 2.0 - 1.0;
 
                 // Generate the vertex
-                positions.extend_from_slice(&[px, py, 0.0]);
+                positions.extend_from_slice(&[u, v, 0.0]);
                 normals.extend_from_slice(&[0.0, 0.0, 1.0]);
                 uvs.extend_from_slice(&[u, v]);
 

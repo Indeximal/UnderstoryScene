@@ -5,13 +5,11 @@ use std::rc::Rc;
 use crate::assets::Assets;
 use crate::mesh::ElementMeshVAO;
 use crate::renderer::Renderable;
+use crate::scene::SCENE_SIZE;
 use crate::shader::Shader;
 use crate::texture::Texture;
 
 use noise::{MultiFractal, NoiseFn, ScaleBias};
-
-/// The side length of the centered terrain square in meters.
-pub const TERRAIN_SIZE: f32 = 6.0;
 
 #[derive(Clone)]
 pub struct TerrainEntity {
@@ -22,7 +20,7 @@ pub struct TerrainEntity {
     pub albedo_yz: Rc<Texture>,
     pub shader: Rc<Shader>,
     pub model: glm::Mat4,
-    // A matrix that will right multiply a world coordinate into a uv coordinate
+    /// A matrix that will right multiply a world coordinate into a uv coordinate.
     pub world_to_uv: glm::Mat3,
 }
 
@@ -30,24 +28,8 @@ impl TerrainEntity {
     /// This is not particularly smart to use more than once, as it
     /// does not share textures, shaders or buffers.
     pub fn from_assets(height_fn: &(impl NoiseFn<f64, 2> + ?Sized), assets: &Assets) -> Self {
-        let model = glm::scale(
-            &glm::identity(),
-            &glm::vec3(TERRAIN_SIZE / 2.0, TERRAIN_SIZE / 2.0, 1.0),
-        );
-        let uv_to_world = glm::translate2d(
-            &glm::scale2d(&glm::identity(), &glm::vec2(TERRAIN_SIZE, TERRAIN_SIZE)),
-            &glm::vec2(-0.5, -0.5),
-        );
-        let height_tex = Texture::from_noise(
-            height_fn,
-            (
-                -TERRAIN_SIZE / 2.,
-                TERRAIN_SIZE / 2.,
-                -TERRAIN_SIZE / 2.,
-                TERRAIN_SIZE / 2.,
-            ),
-            256,
-        );
+        let model = glm::scale(&glm::identity(), &glm::vec3(SCENE_SIZE, SCENE_SIZE, 1.0));
+        let height_tex = Texture::from_noise(height_fn, (0., SCENE_SIZE, 0., SCENE_SIZE), 256);
 
         TerrainEntity {
             vao: assets.terrain_quad_mesh.clone(),
@@ -56,7 +38,10 @@ impl TerrainEntity {
             albedo_xz: assets.rock_tex.clone(),
             albedo_yz: assets.rock_tex.clone(),
             model,
-            world_to_uv: glm::inverse(&uv_to_world),
+            world_to_uv: glm::scale2d(
+                &glm::identity(),
+                &glm::vec2(1.0 / SCENE_SIZE, 1.0 / SCENE_SIZE),
+            ),
             shader: assets.terrain_shader.clone(),
         }
     }
