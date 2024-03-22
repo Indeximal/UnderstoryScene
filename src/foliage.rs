@@ -1,4 +1,3 @@
-use crate::assets::ImageNoiseFnWrapper;
 use crate::mesh::{ElementMeshVAO, InstancedMeshesVAO, Mesh};
 use crate::renderer::Renderable;
 use crate::scene::SCENE_SIZE;
@@ -27,9 +26,10 @@ pub struct ShrubEntitiesBuilder {
     model: Option<Rc<Mesh>>,
     z_scale_range: (f32, f32),
     scale_range: (f32, f32),
+    bounds: (f32, f32, f32, f32),
     texture: Option<Rc<Texture>>,
     shader: Option<Rc<Shader>>,
-    bushiness: Option<ImageNoiseFnWrapper<1>>,
+    bushiness: Option<Box<dyn NoiseFn<f64, 2>>>,
 }
 
 impl ShrubEntitiesBuilder {
@@ -41,6 +41,7 @@ impl ShrubEntitiesBuilder {
             model: None,
             z_scale_range: (1.0, 1.0),
             scale_range: (1.0, 1.0),
+            bounds: (0., SCENE_SIZE, 0., SCENE_SIZE),
             texture: None,
             shader: None,
             bushiness: None,
@@ -65,9 +66,9 @@ impl ShrubEntitiesBuilder {
                 .set_bias(0.1);
 
             let distr = noise::Multiply::new(distr, bushiness);
-            generate_points_on_distribution(distr, (0., SCENE_SIZE, 0., SCENE_SIZE), rng.gen())
+            generate_points_on_distribution(distr, self.bounds, rng.gen())
         } else {
-            generate_points_on_distribution(distr, (0., SCENE_SIZE, 0., SCENE_SIZE), rng.gen())
+            generate_points_on_distribution(distr, self.bounds, rng.gen())
         };
 
         if positions.len() > self.num_limit {
@@ -135,8 +136,13 @@ impl ShrubEntitiesBuilder {
         self
     }
 
-    pub fn with_bushiness(mut self, bushiness: ImageNoiseFnWrapper<1>) -> Self {
-        self.bushiness = Some(bushiness);
+    pub fn with_bounds(mut self, min_x: f32, max_x: f32, min_y: f32, max_y: f32) -> Self {
+        self.bounds = (min_x, max_x, min_y, max_y);
+        self
+    }
+
+    pub fn with_bushiness(mut self, bushiness: impl NoiseFn<f64, 2> + 'static) -> Self {
+        self.bushiness = Some(Box::new(bushiness));
         self
     }
 

@@ -31,6 +31,7 @@ pub struct Assets {
     ///
     /// - The base height in the R channel
     /// - The base bushyness in the G channel
+    /// - The tree locations in the B channel
     pub base_map: Rc<image::RgbaImage>,
 
     // These could technically also share the VAO, but since the instance data
@@ -156,6 +157,12 @@ impl ImageNoiseFnWrapper<0> {
 
 impl ImageNoiseFnWrapper<1> {
     pub fn new_green(image: Rc<image::RgbaImage>) -> Self {
+        ImageNoiseFnWrapper { image }
+    }
+}
+
+impl ImageNoiseFnWrapper<2> {
+    pub fn new_blue(image: Rc<image::RgbaImage>) -> Self {
         ImageNoiseFnWrapper { image }
     }
 }

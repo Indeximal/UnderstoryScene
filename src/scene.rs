@@ -77,6 +77,7 @@ impl Scene {
                     .with_texture(assets.bush_side_tex.clone())
                     .with_model(assets.bush2_model.clone())
                     .with_shader(assets.foliage_shader.clone())
+                    .with_bushiness(ImageNoiseFnWrapper::new_green(assets.base_map.clone()))
                     .with_z_scale_range(0.7, 1.0)
                     .with_scale_range(1.5, 3.0)
                     .load(rng.gen())
@@ -85,11 +86,13 @@ impl Scene {
             let trees = time!("trees", {
                 ShrubEntitiesBuilder::new()
                     .with_density(1.)
-                    .with_entitiy_limit(21)
+                    .with_entitiy_limit(60)
                     .on_height_map(&height_map)
+                    .with_bounds(0., 1.5 * SCENE_SIZE, 0., 1.5 * SCENE_SIZE)
                     .with_texture(assets.bark_tex.clone())
                     .with_model(assets.tree_model.clone())
                     .with_shader(assets.foliage_shader.clone())
+                    .with_bushiness(ImageNoiseFnWrapper::new_blue(assets.base_map.clone()))
                     .with_scale_range(0.5, 1.0)
                     .load(rng.gen())
             });

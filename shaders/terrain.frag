@@ -19,7 +19,7 @@ void main() {
     vec3 weights = pow(abs(normal), vec3(8.0));
     weights /= dot(weights, vec3(1.0));
 
-    vec4 color_xy = texture(terrain_albedo_xy, 1.6 * rotation45 * v_pos.xy, -1.5);
+    vec4 color_xy = texture(terrain_albedo_xy, 1.6 * v_pos.xy, -1.5);
     vec4 color_xz = texture(terrain_albedo_xz, v_pos.xz, -1.5);
     vec4 color_yz = texture(terrain_albedo_yz, v_pos.yz, -1.5);
     color = color_xy * weights.z + color_xz * weights.y + color_yz * weights.x;
