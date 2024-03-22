@@ -15,7 +15,9 @@ use noise::{MultiFractal, NoiseFn, ScaleBias};
 pub struct TerrainEntity {
     pub vao: Rc<ElementMeshVAO>,
     pub displacement: Rc<Texture>,
-    pub albedo_xy: Rc<Texture>,
+    pub variant: Rc<Texture>,
+    pub albedo_xy1: Rc<Texture>,
+    pub albedo_xy2: Rc<Texture>,
     pub albedo_xz: Rc<Texture>,
     pub albedo_yz: Rc<Texture>,
     pub shader: Rc<Shader>,
@@ -25,18 +27,49 @@ pub struct TerrainEntity {
 }
 
 impl TerrainEntity {
-    /// This is not particularly smart to use more than once, as it
-    /// does not share textures, shaders or buffers.
-    pub fn from_assets(height_fn: &(impl NoiseFn<f64, 2> + ?Sized), assets: &Assets) -> Self {
+    pub fn ground(
+        height_fn: &(impl NoiseFn<f64, 2> + ?Sized),
+        variant_fn: &(impl NoiseFn<f64, 2> + ?Sized),
+        assets: &Assets,
+    ) -> Self {
         let model = glm::scale(&glm::identity(), &glm::vec3(SCENE_SIZE, SCENE_SIZE, 1.0));
         let height_tex = Texture::from_noise(height_fn, (0., SCENE_SIZE, 0., SCENE_SIZE), 256);
+        let variant_tex = Texture::from_noise(variant_fn, (0., SCENE_SIZE, 0., SCENE_SIZE), 256);
 
         TerrainEntity {
             vao: assets.terrain_quad_mesh.clone(),
             displacement: Rc::new(height_tex),
-            albedo_xy: assets.moss_tex.clone(),
+            variant: Rc::new(variant_tex),
+            albedo_xy1: assets.moss_tex.clone(),
+            albedo_xy2: assets.ground_tex.clone(),
             albedo_xz: assets.rock_tex.clone(),
             albedo_yz: assets.rock_tex.clone(),
+            model,
+            world_to_uv: glm::scale2d(
+                &glm::identity(),
+                &glm::vec2(1.0 / SCENE_SIZE, 1.0 / SCENE_SIZE),
+            ),
+            shader: assets.terrain_shader.clone(),
+        }
+    }
+
+    pub fn bushes(
+        height_fn: &(impl NoiseFn<f64, 2> + ?Sized),
+        variant_fn: &(impl NoiseFn<f64, 2> + ?Sized),
+        assets: &Assets,
+    ) -> Self {
+        let model = glm::scale(&glm::identity(), &glm::vec3(SCENE_SIZE, SCENE_SIZE, 1.0));
+        let height_tex = Texture::from_noise(height_fn, (0., SCENE_SIZE, 0., SCENE_SIZE), 256);
+        let variant_tex = Texture::from_noise(variant_fn, (0., SCENE_SIZE, 0., SCENE_SIZE), 256);
+
+        TerrainEntity {
+            vao: assets.terrain_quad_mesh.clone(),
+            displacement: Rc::new(height_tex),
+            variant: Rc::new(variant_tex),
+            albedo_xy1: assets.transparent_tex.clone(),
+            albedo_xy2: assets.bush_tex.clone(),
+            albedo_xz: assets.transparent_tex.clone(),
+            albedo_yz: assets.transparent_tex.clone(),
             model,
             world_to_uv: glm::scale2d(
                 &glm::identity(),
@@ -72,9 +105,13 @@ impl Renderable for TerrainEntity {
 
             self.displacement.activate(0);
             gl::Uniform1i(self.shader.get_uniform_location("displacement_map"), 0);
+            self.variant.activate(5);
+            gl::Uniform1i(self.shader.get_uniform_location("variant_map"), 5);
 
-            self.albedo_xy.activate(1);
-            gl::Uniform1i(self.shader.get_uniform_location("terrain_albedo_xy"), 1);
+            self.albedo_xy1.activate(4);
+            gl::Uniform1i(self.shader.get_uniform_location("terrain_albedo_xy1"), 4);
+            self.albedo_xy2.activate(1);
+            gl::Uniform1i(self.shader.get_uniform_location("terrain_albedo_xy2"), 1);
             self.albedo_xz.activate(2);
             gl::Uniform1i(self.shader.get_uniform_location("terrain_albedo_xz"), 2);
             self.albedo_yz.activate(3);
@@ -97,12 +134,6 @@ pub struct RockMap {
 impl RockMap {
     pub fn new(seed: u32) -> RockMap {
         let mut rng = rand::rngs::SmallRng::seed_from_u64(seed as u64);
-        // let worley_values = noise::Worley::new(seed).set_frequency(1.0);
-        // let worley_values = noise::Max::new(worley_values, noise::Constant::new(0.0));
-        // let worley_distance = noise::Worley::new(seed)
-        //     .set_frequency(1.0)
-        //     .set_return_type(noise::core::worley::ReturnType::Distance);
-        // let noise = noise::Multiply::new(worley_values, worley_distance);
 
         // Large scale features, but not very much detail
         let rockyness = noise::Fbm::<noise::Value>::new(rng.gen())
@@ -179,6 +210,39 @@ pub fn height_map(base: Rc<image::RgbaImage>, seed: u32) -> impl NoiseFn<f64, 2>
     let base_height = noise::ScaleBias::new(base_height).set_scale(2.0);
 
     noise::Add::new(base_height, noise::Add::new(rocks, height))
+}
+
+pub fn variant_map(base: Rc<image::RgbaImage>, seed: u32) -> impl NoiseFn<f64, 2> + 'static {
+    let noise = noise::Fbm::<noise::Value>::new(seed)
+        .set_octaves(6)
+        .set_frequency(0.2);
+    let noise = ScaleBias::new(noise).set_scale(0.5).set_bias(0.5);
+
+    let bushiness = noise::Power::new(
+        ImageNoiseFnWrapper::new_green(base),
+        noise::Constant::new(2.0),
+    );
+    let bushiness = noise::ScaleBias::new(bushiness).set_scale(0.3);
+
+    let total = noise::Add::new(bushiness, noise);
+    let total = noise::Clamp::new(total).set_bounds(0.0, 1.0);
+
+    noise::Power::new(total, noise::Constant::new(2.0))
+}
+
+pub fn bush_heights(seed: u32) -> impl NoiseFn<f64, 2> + 'static {
+    const MIN_HEIGHT: f64 = 0.02;
+    const MAX_HEIGHT: f64 = 0.1;
+    let noise = noise::Fbm::<noise::Value>::new(seed)
+        .set_octaves(5)
+        .set_frequency(1.0);
+    // Move from [-1, 1] to interval [MIN_HEIGHT, MAX_HEIGHT]
+    let noise = ScaleBias::new(noise).set_scale(0.5).set_bias(0.5);
+    let noise = ScaleBias::new(noise)
+        .set_scale(MAX_HEIGHT - MIN_HEIGHT)
+        .set_bias(MIN_HEIGHT);
+
+    noise
 }
 
 struct Slice4D<F: NoiseFn<f64, 4>> {

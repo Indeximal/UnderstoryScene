@@ -41,9 +41,26 @@ impl Scene {
                 ))
             );
 
+            let variant_map: Rc<dyn NoiseFn<f64, 2>> = time!(
+                "variant map",
+                Rc::new(crate::terrain::variant_map(
+                    assets.base_map.clone(),
+                    rng.gen()
+                ))
+            );
+
             let ground_entity = time!(
                 "terrain",
-                TerrainEntity::from_assets(height_map.as_ref(), assets)
+                TerrainEntity::ground(height_map.as_ref(), variant_map.as_ref(), assets)
+            );
+
+            let blueberry_bushes = time!(
+                "blueberry terrain",
+                TerrainEntity::bushes(
+                    &noise::Add::new(height_map.as_ref(), crate::terrain::bush_heights(rng.gen())),
+                    variant_map.as_ref(),
+                    assets
+                )
             );
 
             // Accepting that the VAO is loaded anew
@@ -99,6 +116,7 @@ impl Scene {
 
             let entities: Vec<Box<dyn Renderable>> = vec![
                 Box::new(ground_entity),
+                Box::new(blueberry_bushes),
                 Box::new(shrubs),
                 Box::new(bushes1),
                 Box::new(bushes2),

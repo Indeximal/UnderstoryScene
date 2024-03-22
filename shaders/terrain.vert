@@ -5,8 +5,10 @@ layout(location = 4) in vec2 uv;
 
 out vec3 v_pos;
 out vec3 v_normal;
+out float v_variant;
 
 uniform sampler2D displacement_map;
+uniform sampler2D variant_map;
 uniform mat4 view_proj;
 // This will only transform the base shape, not the displacement
 uniform mat4 model_mat;
@@ -29,6 +31,8 @@ void main() {
     float zv = sample_displacement(world_pos.xy + vec2(0.0, dx));
     float du = (z - zu) / dx;
     float dv = (z - zv) / dx;
+
+    v_variant = texture(variant_map, (world_to_uv * vec3(world_pos.xy, 1.0)).xy).r;
 
     // FIXME: This might be wrong
     v_normal = normalize(vec3(du, dv, 1.0));

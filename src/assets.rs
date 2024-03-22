@@ -21,10 +21,12 @@ macro_rules! time {
 /// ie textures, models and shaders that do not depend on the seed.
 pub struct Assets {
     pub moss_tex: Rc<Texture>,
+    pub ground_tex: Rc<Texture>,
     pub rock_tex: Rc<Texture>,
     pub bush_tex: Rc<Texture>,
     pub bush_side_tex: Rc<Texture>,
     pub shrub_tex: Rc<Texture>,
+    pub transparent_tex: Rc<Texture>,
     pub bark_tex: Rc<Texture>,
 
     /// A map of the terrain, created by an artist, which controls:
@@ -76,6 +78,12 @@ impl Assets {
                     tex.enable_mipmap();
                     Rc::new(tex)
                 }),
+                ground_tex: time!("ground texture", {
+                    let tex = Texture::from_file("textures/ground1.jpeg")
+                        .expect("Loading ground texture failed");
+                    tex.enable_mipmap();
+                    Rc::new(tex)
+                }),
                 rock_tex: time!("rock texture", {
                     let tex = Texture::from_file("textures/rock1.jpeg")
                         .expect("Loading rock texture failed");
@@ -100,7 +108,14 @@ impl Assets {
                         1,
                         &[71. / 255., 49. / 255., 68. / 255., 1.0],
                     );
-                    tex.enable_mipmap();
+                    Rc::new(tex)
+                }),
+                transparent_tex: time!("transparent texture", {
+                    let tex = Texture::new::<f32, crate::texture::format::RGBA>(
+                        1,
+                        1,
+                        &[85. / 255., 92. / 255., 42. / 255., 0.0],
+                    );
                     Rc::new(tex)
                 }),
                 bark_tex: time!("bark texture", {

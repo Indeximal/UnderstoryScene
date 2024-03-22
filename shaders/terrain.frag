@@ -2,8 +2,10 @@
 
 in vec3 v_pos;
 in vec3 v_normal;
+in float v_variant;
 
-uniform sampler2D terrain_albedo_xy;
+uniform sampler2D terrain_albedo_xy1;
+uniform sampler2D terrain_albedo_xy2;
 uniform sampler2D terrain_albedo_xz;
 uniform sampler2D terrain_albedo_yz;
 
@@ -14,12 +16,18 @@ const vec3 light_up = normalize(vec3(0.5, 0.5, 1.0));
 // 2d 45 degree rotation mat
 const mat2 rotation45 = mat2(0.707, -0.707, 0.707, 0.707);
 
+float interp_quintic(float t) {
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
 void main() {
     vec3 normal = normalize(v_normal);
     vec3 weights = pow(abs(normal), vec3(8.0));
     weights /= dot(weights, vec3(1.0));
 
-    vec4 color_xy = texture(terrain_albedo_xy, 1.6 * v_pos.xy, -1.5);
+    vec4 color_xy1 = texture(terrain_albedo_xy1, 1.6 * v_pos.xy, -1.5);
+    vec4 color_xy2 = texture(terrain_albedo_xy2, 1.5 * rotation45 * v_pos.xy, -1.5);
+    vec4 color_xy = mix(color_xy1, color_xy2, interp_quintic(v_variant));
     vec4 color_xz = texture(terrain_albedo_xz, v_pos.xz, -1.5);
     vec4 color_yz = texture(terrain_albedo_yz, v_pos.yz, -1.5);
     color = color_xy * weights.z + color_xz * weights.y + color_yz * weights.x;
