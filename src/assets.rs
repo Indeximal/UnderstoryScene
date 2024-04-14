@@ -106,7 +106,7 @@ impl Assets {
                     let tex = Texture::new::<f32, crate::texture::format::RGBA>(
                         1,
                         1,
-                        &[71. / 255., 49. / 255., 68. / 255., 1.0],
+                        &[92. / 255., 63. / 255., 83. / 255., 1.0],
                     );
                     Rc::new(tex)
                 }),

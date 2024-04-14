@@ -21,4 +21,5 @@ void main() {
     vec3 normal = normalize(v_normal);
     float diff = clamp(dot(normal, light_up), 0.0, 1.0);
     out_color = vec4(color.rgb * (0.5 * diff + 0.5), 1.0);
+    out_color *= clamp(0.3 + 2.0 * v_position.z, 0., 1.);
 }

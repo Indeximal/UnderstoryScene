@@ -234,8 +234,8 @@ pub fn bush_heights(seed: u32) -> impl NoiseFn<f64, 2> + 'static {
     const MIN_HEIGHT: f64 = 0.02;
     const MAX_HEIGHT: f64 = 0.1;
     let noise = noise::Fbm::<noise::Value>::new(seed)
-        .set_octaves(5)
-        .set_frequency(1.0);
+        .set_octaves(6)
+        .set_frequency(0.8);
     // Move from [-1, 1] to interval [MIN_HEIGHT, MAX_HEIGHT]
     let noise = ScaleBias::new(noise).set_scale(0.5).set_bias(0.5);
     let noise = ScaleBias::new(noise)
