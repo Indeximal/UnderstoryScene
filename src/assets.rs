@@ -64,8 +64,8 @@ impl Assets {
                 }),
                 foliage_shader: time!("foliage shader", {
                     let shader = ShaderBuilder::new()
-                        .with_shader_file("shaders/composable_instanced.vert")
-                        .with_shader_file("shaders/composable_shaded_texture.frag")
+                        .with_shader_file("shaders/foliage_instanced.vert")
+                        .with_shader_file("shaders/foliage_shaded_texture.frag")
                         .link()
                         .expect("Foliage shader had errors. See stdout.");
                     Rc::new(shader)
