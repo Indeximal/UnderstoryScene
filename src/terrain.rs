@@ -103,6 +103,20 @@ impl Renderable for TerrainEntity {
                 self.world_to_uv.as_ptr(),
             );
 
+            let phase = std::time::UNIX_EPOCH
+                .elapsed()
+                .expect("Assume the time is increasing")
+                .as_secs_f32();
+            println!("{phase}");
+            // FIXME: This is only second precise, not good ...
+            let phase = if phase > 2.5 { 5.0 - phase } else { phase };
+            gl::Uniform3f(
+                self.shader.get_uniform_location("depression"),
+                phase + 3.,
+                -phase + 3.,
+                1.10,
+            );
+
             self.displacement.activate(0);
             gl::Uniform1i(self.shader.get_uniform_location("displacement_map"), 0);
             self.variant.activate(5);

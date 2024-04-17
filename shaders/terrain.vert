@@ -15,6 +15,8 @@ uniform mat4 model_mat;
 // A matrix that will right multiply a world coordinate into a uv coordinate
 uniform mat3 world_to_uv;
 
+uniform vec3 depression;
+
 // Min feature size is less than 5cm
 const float dx = 0.05;
 
@@ -31,14 +33,16 @@ void main() {
     float zv = sample_displacement(world_pos.xy + vec2(0.0, dx));
     float du = (z - zu) / dx;
     float dv = (z - zv) / dx;
+    v_normal = normalize(vec3(du, dv, 1.0));
 
     v_variant = texture(variant_map, (world_to_uv * vec3(world_pos.xy, 1.0)).xy).r;
 
-    // FIXME: This might be wrong
-    v_normal = normalize(vec3(du, dv, 1.0));
+    // FIXME: this changes the normal
+    vec2 depress_vec = depression.xy - world_pos.xy;
+    float depress = exp(-dot(depress_vec, depress_vec)) * depression.z;
 
     // Doing this after the model matrix means that the direction is hardcoded
-    vec4 displaced_pos = world_pos + z * vec4(0.0, 0.0, 1.0, 0.0);
+    vec4 displaced_pos = world_pos + (z - depress) * vec4(0.0, 0.0, 1.0, 0.0);
     v_pos = displaced_pos.xyz;
     gl_Position = view_proj * displaced_pos;
 }
