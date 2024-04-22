@@ -64,19 +64,19 @@ impl Scene {
             );
 
             // Accepting that the VAO is loaded anew
-            let shrubs = time!("shrubs", {
+            let saplings = time!("saplings", {
                 ShrubEntitiesBuilder::new()
                     .with_density(50.)
                     .on_height_map(&height_map)
                     .with_bushiness(ImageNoiseFnWrapper::new_green(assets.base_map.clone()))
-                    .with_texture(assets.shrub_tex.clone())
-                    .with_model(assets.shrub_model.clone())
+                    .with_texture(assets.sapling_tex.clone())
+                    .with_model(assets.sapling_model.clone())
                     .with_shader(assets.foliage_shader.clone())
                     .with_z_scale_range(0.4, 1.2)
                     .load(rng.gen())
             });
 
-            let bushes1 = time!("bushes", {
+            let bushes = time!("bushes", {
                 ShrubEntitiesBuilder::new()
                     .with_density(30.)
                     .on_height_map(&height_map)
@@ -87,12 +87,12 @@ impl Scene {
                     .load(rng.gen())
             });
 
-            let bushes2 = time!("bushes", {
+            let shrubs = time!("shrubs", {
                 ShrubEntitiesBuilder::new()
                     .with_density(5.)
                     .on_height_map(&height_map)
-                    .with_texture(assets.bush_side_tex.clone())
-                    .with_model(assets.bush2_model.clone())
+                    .with_texture(assets.shrub_side_tex.clone())
+                    .with_model(assets.shrub_model.clone())
                     .with_shader(assets.foliage_shader.clone())
                     .with_bushiness(ImageNoiseFnWrapper::new_green(assets.base_map.clone()))
                     .with_z_scale_range(0.7, 1.0)
@@ -115,12 +115,12 @@ impl Scene {
             });
 
             let entities: Vec<Box<dyn Renderable>> = vec![
-                Box::new(ground_entity),
-                Box::new(blueberry_bushes),
-                Box::new(shrubs),
-                Box::new(bushes1),
-                Box::new(bushes2),
                 Box::new(trees),
+                Box::new(saplings),
+                Box::new(bushes),
+                Box::new(shrubs),
+                Box::new(blueberry_bushes),
+                Box::new(ground_entity),
             ];
 
             Scene {
@@ -144,7 +144,7 @@ impl Scene {
         );
         // Stand in a corner of the scene the scene somewhat above the ground
         let base = glm::vec3(1.0, 1.0, 2.0);
-        base + bob
+        base
     }
 
     pub fn look_at(&self) -> glm::Vec3 {
