@@ -144,7 +144,7 @@ impl Scene {
         );
         // Stand in a corner of the scene the scene somewhat above the ground
         let base = glm::vec3(1.0, 1.0, 2.0);
-        base
+        base + bob
     }
 
     pub fn look_at(&self) -> glm::Vec3 {
